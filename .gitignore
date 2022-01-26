@@ -3,6 +3,7 @@
 
 # data
 data/
+telegram_config/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
