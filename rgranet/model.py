@@ -1,9 +1,11 @@
+from mimetypes import init
 import torch
 from enum import Enum
 
 from .pruning_mask import _Mask, LMMask
 from .pytorch_utils import AverageMeter, correct_preds
 from .model_logger import ModelLogger, Verbosity, Milestone
+from .pruning_rate_schedule import _PruningRateScheduling, PruningRateCosineScheduling
 from .utils import coalesce
 
 class LRSchedulerUpdateTime(Enum):
@@ -16,20 +18,23 @@ class Model(torch.nn.Module):
     def __init__(
         self,
         module:torch.nn.Module,
-        optimizer:torch.optim.Optimizer=None,
-        lr_scheduler:torch.optim.lr_scheduler._LRScheduler=None,
+        optimizer_class=None,
+        optimizer_kwargs=None,
+        lr_scheduler_class=None,
+        lr_scheduler_kwargs=None,
         lr_scheduler_update_time:LRSchedulerUpdateTime=LRSchedulerUpdateTime.END_EPOCH,
         loss_fn:torch.nn.Module=None,
         mask:_Mask=None,
         mask_class=LMMask,
-        init_pruning_rate:float=0.0,
         mask_kwargs:dict=None,
         verbose=True
     ):
         super().__init__()
         self.net = module
-        self.optimizer = optimizer
-        self.scheduler = lr_scheduler
+        optimizer_kwargs = coalesce(optimizer_kwargs, {})
+        self.optimizer = optimizer_class(self.net.parameters(), **optimizer_kwargs)
+        lr_scheduler_kwargs = coalesce(lr_scheduler_kwargs, {})
+        self.scheduler = lr_scheduler_class(self.optimizer, **lr_scheduler_kwargs)
         self.scheduler_update_time = lr_scheduler_update_time
         self.loss_fn = loss_fn
 
@@ -40,8 +45,8 @@ class Model(torch.nn.Module):
         self.logger = ModelLogger(logs_categories=[], verbosity=Verbosity.VERBOSE_PRINT if verbose else Verbosity.SILENT)
 
         self.mask = mask
-        if mask is None:
-            self.mask = mask_class(init_pruning_rate, self, **mask_kwargs)
+        if self.mask is None:
+            self.mask = mask_class(**mask_kwargs, net=self)
         
 
         

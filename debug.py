@@ -1,7 +1,7 @@
 import torch
 from rgranet.pruning_mask import LMMask
 from rgranet.model import Model
-import rgranet.pruning_rate_annealing as A
+import rgranet.pruning_rate_schedule as A
 from rgranet.neuroregeneration import gradient_based_neuroregeneration
 
 torch.manual_seed(111)

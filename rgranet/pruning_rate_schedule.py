@@ -1,19 +1,20 @@
 from hashlib import new
 import math
 
-class _PruningRateAnnealing:
+class _PruningRateScheduling:
     def __init__(self, initial_pruning_rate):
         self.initial_pruning_rate = initial_pruning_rate
         self.current_pruning_rate = initial_pruning_rate
+        self.regrowth_rate = None
 
     def step(self):
         raise NotImplementedError("This is an abstract class")
 
-class NoPruningRateAnnealing(_PruningRateAnnealing):
+class NoPruningRateScheduling(_PruningRateScheduling):
     def step(self):
         return self.current_pruning_rate
 
-class PruningRateCosineAnnealing(_PruningRateAnnealing):
+class PruningRateCosineScheduling(_PruningRateScheduling):
     def __init__(self, initial_pruning_rate, tot_num_ite, pruning_rate_min=5e-3):
         super().__init__(initial_pruning_rate)
         self.T_max = tot_num_ite
@@ -24,7 +25,7 @@ class PruningRateCosineAnnealing(_PruningRateAnnealing):
         self.current_pruning_rate = self.eta_min + .5 * (self.current_pruning_rate - self.eta_min) * (1 + math.cos(math.pi * self.step_counter / self.T_max))
         self.step_counter += 1
 
-class PruningRateLinearAnnealing(_PruningRateAnnealing):
+class PruningRateLinearScheduling(_PruningRateScheduling):
     def __init__(self, initial_pruning_rate, final_pruning_rate, tot_num_ite):
         super().__init__(initial_pruning_rate)
         self.final_pruning_rate = final_pruning_rate
@@ -34,8 +35,9 @@ class PruningRateLinearAnnealing(_PruningRateAnnealing):
     def step(self):
         self.current_pruning_rate -= self.update_step
 
-class PruningRateCubicAnnealing(_PruningRateAnnealing):
+class PruningRateCubicScheduling(_PruningRateScheduling):
     def __init__(self, initial_sparsity:float, final_sparsity:float, tot_num_pruning_ite:int, initial_ite_pruning:int=0, pruning_frequency:int=1):
+        super().__init__(0)
         self.initial_sparsity = initial_sparsity
         self.current_sparsity = initial_sparsity
         self.final_sparsity = final_sparsity
@@ -57,10 +59,10 @@ class PruningRateCubicAnnealing(_PruningRateAnnealing):
             self.current_sparsity = new_sparsity
         self.step_counter += 1
     
-class PruningRateCubicAnnealingWithRegrowth(PruningRateCubicAnnealing):
-    def __init__(self, initial_sparsity:float, final_sparsity:float, tot_num_pruning_ite:int, regrowth_dampening:float, initial_ite_pruning:int=0, pruning_frequency:int=1):
-        self.k = regrowth_dampening
+class PruningRateCubicSchedulingWithRegrowth(PruningRateCubicScheduling):
+    def __init__(self, initial_sparsity:float, final_sparsity:float, tot_num_pruning_ite:int, initial_ite_pruning:int=0, pruning_frequency:int=1):
         super().__init__(initial_sparsity, final_sparsity, tot_num_pruning_ite, initial_ite_pruning=initial_ite_pruning, pruning_frequency=pruning_frequency)
+        self.regrowth_rate = 0.0
         
     
     def step(self):
@@ -68,12 +70,10 @@ class PruningRateCubicAnnealingWithRegrowth(PruningRateCubicAnnealing):
         super().step()
         target_density = 1 - self.current_sparsity
 
-        # k_mul = (self.k + 1) * prev_density
-        # delta = (k_mul ** 2) - 4 * prev_density * self.k * target_density
-
         delta = 4 * prev_density * target_density - 3 * prev_density * prev_density
         if delta < 0:
             raise ValueError(f"Delta is negative. Target density ({target_density:.4f}) should be ≥ ¾ ⋅ previous density ({prev_density:.4f}). Currently target density is {target_density/prev_density:.4f}. Try decreasing the final sparsity or increasing the numbe of pruning iterations.")
 
         corrected_pruning_rate = (prev_density - math.sqrt(delta)) / (2 * prev_density)
         self.current_pruning_rate = corrected_pruning_rate
+        self.regrowth_rate = corrected_pruning_rate

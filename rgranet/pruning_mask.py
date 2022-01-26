@@ -2,8 +2,9 @@ from typing import Collection, Union
 from collections import OrderedDict as Odict
 import torch
 
-from . import pruning_rate_annealing as annealing
+from . import pruning_rate_schedule as schedule
 from .utils import coalesce
+from .neuroregeneration import gradient_based_neuroregeneration
 
 
 
@@ -13,16 +14,16 @@ class _Mask():
         init_pruning_rate:float,
         net:torch.nn.Module,
         params_to_prune:Collection=None,
-        pruning_rate_annealing=annealing.NoPruningRateAnnealing,
-        annealing_args:dict=None,
+        pruning_rate_schedule=schedule.NoPruningRateAnnealing,
+        scheduling_kwargs:dict=None,
         is_global:bool=True,
         n_steps_prune:int=1
     ):
-        annealing_args = coalesce(annealing_args, {"initial_pruning_rate": init_pruning_rate})
-        pruning_rate_annealing = coalesce(pruning_rate_annealing, annealing.NoPruningRateAnnealing)
+        scheduling_kwargs = coalesce(scheduling_kwargs, {"initial_pruning_rate": init_pruning_rate})
+        pruning_rate_schedule = coalesce(pruning_rate_schedule, schedule.NoPruningRateAnnealing)
         self.p = init_pruning_rate
         self.params_to_prune = params_to_prune
-        self.scheduling = pruning_rate_annealing(**annealing_args)
+        self.scheduling = pruning_rate_schedule(**scheduling_kwargs)
         self.is_global = is_global
         self.steps = 0
         self.n_steps_prune = n_steps_prune
@@ -65,6 +66,8 @@ class _Mask():
         if self.steps % self.n_steps_prune == 0:
             self._update()
             self.apply()
+            if self.scheduling.regrowth_rate is not None and self.scheduling.regrowth_rate > 0.0:
+                gradient_based_neuroregeneration(self.net, self.params_to_prune, self.scheduling.regrowth_rate, self.is_global)
             self.p = self.scheduling.step()
         self.steps += 1
     
