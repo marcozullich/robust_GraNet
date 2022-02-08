@@ -1,0 +1,50 @@
+data:
+  dataset: "cifar10"
+  hyperparameters:
+    root: "${DATASET_PATH}/cifar"
+    batch_size_train: 128
+    batch_size_test: 512
+net: "resnet50"
+train:
+  epochs: 20
+  clip_grad_norm: False
+  checkpoint_path: checkpoints/cifar10.pt #!!null
+  checkpoint_save_time: "epoch"
+  resume_training: False
+  final_model_save_path: models/cifar10_pruned.pt
+  dtype: half
+  amp_hyperparameters:
+    opt_level: "O0"
+    loss_scale: 1.0
+    master_weights: True
+  optim:
+    class: "SGD"
+    hyperparameters:
+      weight_decay: !!float 5e-4
+      momentum: 0.9
+    scheduler:
+      class: "CyclicLR"
+      update_time: "iteration"
+      hyperparameters:
+        base_lr: 0.0
+        max_lr: 0.2
+        up_to_down_ratio: 1.0
+  loss: "Cross Entropy"
+  pruning:
+    # mask_class: "NoMask"
+    mask_class: "LMMask"
+    hyperparameters:
+      init_pruning_rate: 0.0
+      pruning_frequency: 20
+      regrowth_frequency: 20
+      params_to_prune: ["conv", "downsample", "fc"]
+    scheduler:
+      class: "PruningRateCubicSchedulingWithRegrowth"
+      hyperparameters:
+        initial_sparsity: 0.0
+        final_sparsity: 0.9
+        
+util:
+  telegram_config_path: "telegram_config/config.yaml"
+  telegram_config_name: "cifar10" # leave !!null for no telegram
+

@@ -6,23 +6,23 @@ from rgranet.neuroregeneration import gradient_based_neuroregeneration
 
 torch.manual_seed(111)
 
-# class CustomLinear(torch.nn.Module):
-#     def __init__(self):
-#         super().__init__()
-#         self.x = torch.nn.Linear(3, 3)
-#         self.x.load_state_dict(
-#             {"weight": torch.arange(9).reshape(3, 3),
-#             "bias": torch.Tensor([10, 11, 12])
-#         })
-#         self.y = torch.nn.Linear(3, 3)
-#         self.y.load_state_dict(
-#             {"weight": torch.Tensor([[0,0,0],[1,2,3],[4,5,6]]),
-#             "bias": torch.Tensor([10, 11, 12])
-#         })
-#         self.x.requires_grad = True
-#         self.y.requires_grad = True
-#     def forward(self, x):
-#         return self.x(self.y(x))
+class CustomLinear(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.x = torch.nn.Linear(3, 3)
+        self.x.load_state_dict(
+            {"weight": torch.arange(9).reshape(3, 3),
+            "bias": torch.Tensor([10, 11, 12])
+        })
+        self.y = torch.nn.Linear(3, 3)
+        self.y.load_state_dict(
+            {"weight": torch.Tensor([[0,0,0],[1,2,3],[4,5,6]]),
+            "bias": torch.Tensor([10, 11, 12])
+        })
+        self.x.requires_grad = True
+        self.y.requires_grad = True
+    def forward(self, x):
+        return self.x(self.y(x))
 
 # '''net = Model(torch.nn.Sequential(
 #     torch.nn.Linear(3,5),
@@ -49,8 +49,8 @@ torch.manual_seed(111)
 # m.regenerate(regenerated_params)
 # m
 
-p = A.PruningRateCubicAnnealingWithRegrowth(0, .9, 10, 1/8)
-for i in range(100):
+p = A.PruningRateCubicSchedulingWithRegrowth(0, .5, 10, 0, 2)
+for i in range(25):
     p.step()
-    #print(p.current_sparsity, p.current_pruning_rate)
+    print(i, p.current_sparsity, p.current_pruning_rate, p.regrowth_rate)
 p

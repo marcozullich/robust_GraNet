@@ -1,9 +1,15 @@
-
+import os
+import yaml
 from typing import Collection
 
 
 def coalesce(element, value_if_none):
     return value_if_none if element is None else element
+
+
+def make_subdirectory(path):
+    if path is not None:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
 
 def get_file_content(file_path, error_message=None):
     try:
@@ -13,6 +19,10 @@ def get_file_content(file_path, error_message=None):
         if error_message is not None:
             raise FileNotFoundError(error_message)
         raise FileNotFoundError(f"Could not find file {file_path}")
+
+def yaml_load(file_path):
+    with open(file_path, 'r') as f:
+        return yaml.load(f, Loader=yaml.SafeLoader)
 
 class DictOfLists(dict):
     def __init__(self, keys:Collection=None):

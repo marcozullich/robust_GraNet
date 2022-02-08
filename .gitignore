@@ -3,6 +3,8 @@
 
 # data
 data/
+models/
+checkpoints/
 telegram_config/
 
 # Byte-compiled / optimized / DLL files

@@ -19,13 +19,13 @@ def gradient_based_neuroregeneration(net:torch.nn.Module,
                                      regrowth_rate:float,
                                      is_global:bool=False
                                      ) -> Odict:
-    named_gradients = Odict({n: p.grad for n, p in net.filtered_named_parameters(params_to_prune)})
+    named_gradients = ((n, p.grad) for n, p in net.filtered_named_parameters(params_to_prune))
     if is_global:
         regenerated_params = _neuroregenerate_params(net.mask, regrowth_rate, *named_gradients)
     else:
         regenerated_params = {}
-        for name, grad in named_gradients.items():
-            regenerated_params[name] = _neuroregenerate_params(net.mask, regrowth_rate, (name, grad))[name]
+        for name, grad in named_gradients:
+            regenerated_params[name] = _neuroregenerate_params(net.mask.mask_delta, regrowth_rate, (name, grad))[name]
 
     return regenerated_params
     

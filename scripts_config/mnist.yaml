@@ -1,0 +1,43 @@
+data:
+  dataset: "mnist"
+  hyperparameters:
+    root: "${DATASET_PATH}/mnist"
+    batch_size_train: 128
+    batch_size_test: 512
+net: "FCN4"
+train:
+  epochs: 5
+  clip_grad_norm: False
+  checkpoint_path: checkpoints/mnist.pt #!!null
+  resume_training: False
+  final_model_save_path: models/mnist.pt
+  optim:
+    class: "SGD"
+    hyperparameters:
+      weight_decay: !!float 5e-4
+      momentum: 0.9
+    scheduler:
+      class: "CyclicLR"
+      update_time: "iteration"
+      hyperparameters:
+        base_lr: 0.0
+        max_lr: 0.2
+        up_to_down_ratio: 1.0
+  loss: "Cross Entropy"      
+  pruning:
+    mask_class: "LMMask"
+    hyperparameters:
+      init_pruning_rate: 0.0
+      pruning_frequency: 10
+      regrowth_frequency: 10
+      params_to_prune: [.1., .4., .7., .10.]
+    scheduler:
+      class: "PruningRateCubicSchedulingWithRegrowth"
+      hyperparameters:
+        initial_sparsity: 0.0
+        final_sparsity: 0.9
+        
+util:
+  telegram_config_path: "telegram_config/config.yaml"
+  telegram_config_name: "mnist" # leave !!null for no telegram
+
