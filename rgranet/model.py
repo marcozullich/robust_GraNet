@@ -45,8 +45,7 @@ class Model(torch.nn.Module):
         name:str="",
     ):
         super().__init__()
-        # self.net = module
-        self.net = torchvision.models.resnet50()
+        self.net = module
         optimizer_kwargs = coalesce(optimizer_kwargs, {})
         self.optimizer = optimizer_class(self.net.parameters(), **optimizer_kwargs)
         lr_scheduler_kwargs = coalesce(lr_scheduler_kwargs, {})
@@ -113,6 +112,7 @@ class Model(torch.nn.Module):
         ite_start:int=0,
         dtype:Union[str, torch.dtype]=torch.float32,
         amp_args=None,
+        burnout_epochs:int=0,
         **kwargs
     ):
         device = coalesce(device, use_gpu_if_available())
@@ -133,7 +133,7 @@ class Model(torch.nn.Module):
             self.logger.add_log_categories("mask sparsity", "model sparsity")
 
         self.logger.prompt_start(
-            nepochs=num_epochs,
+            nepochs=num_epochs + burnout_epochs,
             net=self,
             save_path=final_model_path,
             epoch_start=epoch_start,
@@ -143,7 +143,7 @@ class Model(torch.nn.Module):
 
         checkpoint_save_path_iteration = checkpoint_path if checkpoint_save_time == TrainingMilestone.END_ITERATION else None
 
-        for epoch in range(epoch_start, num_epochs):
+        for epoch in range(epoch_start, num_epochs + burnout_epochs):
             accuracy_meter = AverageMeter()
             loss_meter = AverageMeter()
             accuracy, loss_val = self.train_epoch(
@@ -155,7 +155,8 @@ class Model(torch.nn.Module):
                 num_ite_optimizer_step=num_ite_optimizer_step, 
                 clip_grad_norm=clip_grad_norm, 
                 checkpoint_path=checkpoint_save_path_iteration,
-                ite_start=ite_start
+                ite_start=ite_start,
+                burnout=epoch >= num_epochs
             )
 
             dict_log = {"train_accuracy": accuracy, "train_loss": loss_val, "train_lr": self.scheduler.get_last_lr()}
@@ -177,7 +178,21 @@ class Model(torch.nn.Module):
             if checkpoint_path is not None:
                 os.remove(checkpoint_path)
     
-    def train_epoch(self, epoch:int, trainloader:torch.utils.data.DataLoader, accuracy_meter:AverageMeter, loss_meter:AverageMeter, device, num_ite_optimizer_step:int=1, clip_grad_norm:bool=True, checkpoint_path:str=None, ite_start:int=0, dtype:Union[str, torch.dtype]=torch.float32, **kwargs):
+    def train_epoch(
+        self,
+        epoch:int,
+        trainloader:torch.utils.data.DataLoader,
+        accuracy_meter:AverageMeter,
+        loss_meter:AverageMeter,
+        device,
+        num_ite_optimizer_step:int=1,
+        clip_grad_norm:bool=True,
+        checkpoint_path:str=None,
+        ite_start:int=0,
+        dtype:Union[str, torch.dtype]=torch.float32,
+        burnout:bool=False,
+        **kwargs
+    ):
         # times = []
         for i, (data, labels) in enumerate(trainloader):
             if i < ite_start:
@@ -188,7 +203,7 @@ class Model(torch.nn.Module):
             data, labels = data.to(device), labels.to(device)
             
             
-            update_mask_this_ite = (i + 1) % num_ite_optimizer_step == 0
+            update_mask_this_ite = (i + 1) % num_ite_optimizer_step == 0 and not burnout
 
             if self.mask is not None and (not isinstance(self.mask, NoMask)) and update_mask_this_ite:
                 self.mask.step()
@@ -207,7 +222,7 @@ class Model(torch.nn.Module):
             # times.append(start.elapsed_time(end))
             loss = self.loss_fn(preds, labels)
 
-            step_optimizer_this_ite = ((i + 1) % num_ite_optimizer_step == 0)
+            step_optimizer_this_ite = ((i + 1) % num_ite_optimizer_step == 0) and (not burnout)
             if step_optimizer_this_ite:
                 self.optimizer.zero_grad()
 

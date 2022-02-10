@@ -84,6 +84,7 @@ class _Mask():
         if self.p > 0.0:
             self._update()
             self.apply()
+            # print(f"\tsparsity after pruning {self.get_mask_sparsity():.6f}")
 
     def step(self):
         self.scheduling.step()
@@ -93,6 +94,7 @@ class _Mask():
         if self.p > 0.0:
             regen_mask = gradient_based_neuroregeneration(self.net, self.params_to_prune, self.scheduling.regrowth_rate, self.is_global)
             self.regenerate(regen_mask)
+            # print(f"\tsparsity after regrowth {self.get_mask_sparsity():.6f}")
         
  
     def get_nonzero_weights_count(self):
@@ -139,10 +141,10 @@ class LMMask(_Mask):
         # if index is 0, the pruning rate is too small to prune anything
         pth_quantile = None
         if index > 0:
+            # print(f"PRUNE: {self.p:.6f} ++ {self.scheduling.regrowth_rate:.6f} - num params {flattened_abs_params.numel()} - index {index} - spa {self.get_mask_sparsity():.6f}")
             pth_quantile = flattened_abs_params.kthvalue(index)[0]
-            print(f"PRUNE: {self.p:.6f} ++ {self.scheduling.regrowth_rate:.6f} - num params {flattened_abs_params.numel()} - index {index} - spa {self.get_mask_sparsity():.6f}")
-            return Odict({name: param.abs() > pth_quantile for name, param in params})
-        print(f"PRUNE: {self.p} - num params {flattened_abs_params.numel()} - index {index} ---")
+            return Odict({name: param.abs() >= pth_quantile for name, param in params})
+        # print(f"PRUNE: {self.p} - num params {flattened_abs_params.numel()} - index {index} ---")
         return self.mask
 
 

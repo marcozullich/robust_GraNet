@@ -7,6 +7,12 @@ def cyclical_lr_determine_up_and_down_size(config, num_ite):
     config["train"]["optim"]["scheduler"]["hyperparameters"]["step_size_down"] = math.floor(num_ite * inv_ratio / (inv_ratio + 1))
     del config["train"]["optim"]["scheduler"]["hyperparameters"]["up_to_down_ratio"]
 
+def cyclical_lr_determine_total_steps(config, num_epochs_without_burnnout, num_ite_per_epoch):
+    if config["train"]["optim"]["scheduler"]["class"].__name__ == "CyclicLRWithBurnout":
+        if "total_steps" not in config["train"]["optim"]["scheduler"]["hyperparameters"]:
+            total_steps = num_epochs_without_burnnout * num_ite_per_epoch
+            config["train"]["optim"]["scheduler"]["hyperparameters"]["total_steps"] = total_steps
+
 def determine_base_lr(config):
     if "lr" not in config["train"]["optim"]["hyperparameters"]:
         if "base_lr" in config["train"]["optim"]["scheduler"]["hyperparameters"]:

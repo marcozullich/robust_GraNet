@@ -127,3 +127,11 @@ class PruningRateCubicSchedulingWithRegrowth(PruningRateCubicScheduling):
         state_dict = super().state_dict()
         state_dict["regrowth_rate"] = self.regrowth_rate
         return state_dict
+
+
+# filename = "prs.txt"
+# with open(filename, "w") as f:
+#     for e in range(11700):
+#         f.write(f"{e}; {self.scheduling.current_pruning_rate}; {self.scheduling.regrowth_rate}\n")
+#         self.scheduling.step()
+    

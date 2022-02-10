@@ -2,10 +2,11 @@ import yaml
 import os
 import timm
 import torch
-import math
+
 
 from rgranet import architectures 
 from rgranet import data
+from rgranet import lr_schedulers
 from rgranet import pruning_mask as msk
 from rgranet import pruning_rate_schedule as prs
 from rgranet import model
@@ -30,9 +31,11 @@ def parse_config_none(config):
 
 def parse_net(config):
     if config["net"] == "FCN4":
-        config["net_class"] = architectures.FCN4
+        config["net_class"] = lambda **kwargs: architectures.FCN4(**kwargs)
+    elif config["net"] == "PreActResNet18":
+        config["net_class"] = lambda num_classes, **kwargs: architectures.PreActResNet18(num_classes=num_classes, **kwargs)
     else:
-        config["net_class"] = lambda num_classes: timm.create_model(config["net"], pretrained=False, num_classes=num_classes)
+        config["net_class"] = lambda num_classes, **kwargs: timm.create_model(config["net"], pretrained=False, num_classes=num_classes, **kwargs)
 
 def parse_datasets(config):
     parser = {
@@ -58,6 +61,7 @@ def parse_lr_scheduler(config):
     parser = {
         "MultiStepLR": torch.optim.lr_scheduler.MultiStepLR,
         "CyclicLR": torch.optim.lr_scheduler.CyclicLR,
+        "CyclicLRWithBurnout": lr_schedulers.CyclicLRWithBurnout
     }
     config["train"]["optim"]["scheduler"]["class"] = parser[config["train"]["optim"]["scheduler"]["class"]]
 

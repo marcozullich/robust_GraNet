@@ -6,14 +6,14 @@ DEFAULT_TRANSFORM = {
     "CIFAR10": {
         "test": T.Compose([
             T.ToTensor(),
-            T.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+            T.Normalize((0.4914, 0.4822, 0.4465), (0.24705882352941178, 0.24352941176470588, 0.2615686274509804)),
         ]),
         "train": T.Compose([
-            T.RandomCrop(32, padding=4),
+            T.RandomCrop(32, padding=4, padding_mode="reflect"),
             T.RandomHorizontalFlip(),
             #T.RandomAffine(degrees=15, translate=(.1,.1), scale=(.9 ,1.1), shear=10, resample=False, fillcolor=0),
             T.ToTensor(),
-            T.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+            T.Normalize((0.4914, 0.4822, 0.4465), (0.24705882352941178, 0.24352941176470588, 0.2615686274509804)),
         ]),
     },
     "MNIST": T.Compose([
@@ -30,7 +30,18 @@ def CIFAR10(root, train=True, transform=None, target_transform=None, download=Fa
 def MNIST(root, train=True, transform=None, target_transform=None, download=False):
     return D.MNIST(root=root, train=train, transform=transform, target_transform=target_transform, download=download)
 
-def CIFAR10_DataLoaders(root, batch_size_train, batch_size_test, transform_train=None, transform_test=None, target_transform=None, validate_pct=0.0, manual_seed_valid_split=SEED_TRAIN_VALID_SPLIT, **kwargs):
+def CIFAR10_DataLoaders(
+    root,
+    batch_size_train,
+    batch_size_test,
+    transform_train=None,
+    transform_test=None,
+    target_transform=None,
+    validate_pct=0.0,
+    manual_seed_valid_split=SEED_TRAIN_VALID_SPLIT,
+    manual_seed_trainloader=None,
+    **kwargs
+):
     if transform_train is None:
         transform_train = DEFAULT_TRANSFORM["CIFAR10"]["train"]
     if transform_test is None:
@@ -42,9 +53,14 @@ def CIFAR10_DataLoaders(root, batch_size_train, batch_size_test, transform_train
         generator = torch.Generator.manual_seed(manual_seed_valid_split) if manual_seed_valid_split is not None else torch.default_generator
         trainset, validset = torch.utils.data.random_split(trainset, [len_train:=int(len(trainset) * (1.0 - validate_pct)), len(trainset) - len_train], generator=generator)
 
+    trainloader_generator = None
+    if manual_seed_trainloader is not None:
+        trainloader_generator = torch.Generator()
+        trainloader_generator.manual_seed(manual_seed_trainloader)
+    
     trainloader = torch.utils.data.DataLoader(
         trainset,
-        batch_size=batch_size_train, shuffle=True, **kwargs)
+        batch_size=batch_size_train, shuffle=True, generator=trainloader_generator, **kwargs)
     testloader = torch.utils.data.DataLoader(
         CIFAR10(root, train=False, transform=transform_test, target_transform=target_transform, download=True),
         batch_size=batch_size_test, shuffle=False, **kwargs)

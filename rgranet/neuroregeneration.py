@@ -10,6 +10,7 @@ def _neuroregenerate_params(
     pruned_params_abs_grad = torch.cat([g[~mask[name]].abs() for name, g in named_gradients])
     grad_threshold_index = int(pruned_params_abs_grad.numel() * (1-regrowth_rate))
     quantile = pruned_params_abs_grad.kthvalue(grad_threshold_index).values
+    # print(f"\t REGROW: {regrowth_rate} - num params {pruned_params_abs_grad.numel()} - index {grad_threshold_index} - num params {pruned_params_abs_grad.numel()}")
     regenerated_params = Odict({n: g.abs() > quantile for n, g in named_gradients})
     return regenerated_params
 
