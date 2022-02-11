@@ -4,15 +4,21 @@ data:
     root: "${DATASET_PATH}/cifar"
     batch_size_train: 128
     batch_size_test: 512
-net: "resnet50"
+    pin_memory: True
+    num_workers: 4
+    manual_seed_trainloader: !!null
+net: "PreActResNet18"
+net_hyperparameters:
+  seed: !!null
 train:
-  epochs: 60
+  epochs: 50
+  burnout_epochs: 5
   clip_grad_norm: False
-  checkpoint_path: !!null
+  checkpoint_path: checkpoints/cifar10.pt #!!null
   checkpoint_save_time: "epoch"
   resume_training: False
-  final_model_save_path: models/cifar10_long.pt
-  dtype: float32
+  final_model_save_path: models/cifar10_pruned_lin.pt
+  dtype: half
   amp_hyperparameters:
     opt_level: "O0"
     loss_scale: 1.0
@@ -20,31 +26,33 @@ train:
   optim:
     class: "SGD"
     hyperparameters:
-      lr: 0.1
       weight_decay: !!float 5e-4
       momentum: 0.9
       nesterov: True
+      lr: 0.1
     scheduler:
       class: "MultiStepLR"
       update_time: "epoch"
       hyperparameters:
-        milestones: [30, 45]
+        gamma: 0.1
+        milestones: [25, 40, 50]
   loss: "Cross Entropy"
   pruning:
-    mask_class: "NoMask"
-    # mask_class: "LMMask"
+    # mask_class: "NoMask"
+    mask_class: "LMMask"
     hyperparameters:
       init_pruning_rate: 0.0
-      pruning_frequency: 10
-      regrowth_frequency: 10
-      params_to_prune: ["conv", "downsample", "fc"]
+      pruning_frequency: 50
+      regrowth_frequency: 50
+      params_to_prune: ["prep.0", "conv", "shortcut", "classifier"]
     scheduler:
       class: "PruningRateCubicSchedulingWithRegrowth"
       hyperparameters:
         initial_sparsity: 0.0
-        final_sparsity: 0.0
+        final_sparsity: 0.9
         
 util:
   telegram_config_path: "telegram_config/config.yaml"
   telegram_config_name: "cifar10" # leave !!null for no telegram
 
+deterministic: False
