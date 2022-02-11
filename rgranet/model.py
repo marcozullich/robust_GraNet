@@ -323,8 +323,8 @@ class Model(torch.nn.Module):
             "scheduler": self.scheduler.state_dict(),
             "logger": self.logger.state_dict(),
             "mask": self.mask.state_dict() if self.mask is not None else None,
-            "device": next(iter(self.net.parameters())).device
-        
+            "device": next(iter(self.net.parameters())).device,
+            "amp": amp.state_dict()
         }
         return state_dict
 
@@ -335,6 +335,7 @@ class Model(torch.nn.Module):
         self.optimizer.load_state_dict(state_dict["optimizer"])
         self.scheduler.load_state_dict(state_dict["scheduler"])
         self.logger.load_state_dict(state_dict["logger"])
+        amp.load_state_dict(state_dict["amp"])
         if (mask_state_dict:=state_dict["mask"]) is not None:
             self.mask.load_state_dict(mask_state_dict)
 

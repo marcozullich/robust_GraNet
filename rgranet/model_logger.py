@@ -1,7 +1,6 @@
 from enum import Enum
 from typing import Collection
 from urllib import request
-import telegram_send as ts
 from functools import total_ordering
 from tqdm import trange
 from tqdm.contrib.telegram import trange as trange_telegram

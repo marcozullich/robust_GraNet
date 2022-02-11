@@ -17,7 +17,7 @@ train:
   checkpoint_path: checkpoints/cifar10.pt #!!null
   checkpoint_save_time: "epoch"
   resume_training: False
-  final_model_save_path: models/cifar10_pruned_nonesterov.pt
+  final_model_save_path: models/cifar10_pruned_nonesterov2.pt
   dtype: half
   amp_hyperparameters:
     opt_level: "O0"
