@@ -57,7 +57,7 @@ class _Mask():
             msk = msk.cpu()
 
     def suppress_grad(self):
-        for (_, param), (_, msk) in zip(self.net.filtered_named_parameters(self.effective_params_to_prune), self.mask.items()):
+        for (name, param), (_, msk) in zip(self.net.filtered_named_parameters(self.effective_params_to_prune), self.mask.items()):
             msk = msk.to(param.grad.device)
             param.grad *= msk
             msk = msk.cpu()
@@ -91,7 +91,7 @@ class _Mask():
         self.p = self.scheduling.current_pruning_rate
     
     def regrow(self):
-        if self.p > 0.0:
+        if self.scheduling.regrowth_rate > 0.0:
             regen_mask = gradient_based_neuroregeneration(self.net, self.params_to_prune, self.scheduling.regrowth_rate, self.is_global)
             self.regenerate(regen_mask)
             # print(f"\tsparsity after regrowth {self.get_mask_sparsity():.6f}")
@@ -144,7 +144,7 @@ class LMMask(_Mask):
             # print(f"PRUNE: {self.p:.6f} ++ {self.scheduling.regrowth_rate:.6f} - num params {flattened_abs_params.numel()} - index {index} - spa {self.get_mask_sparsity():.6f}")
             pth_quantile = flattened_abs_params.kthvalue(index)[0]
             return Odict({name: param.abs() >= pth_quantile for name, param in params})
-        # print(f"PRUNE: {self.p} - num params {flattened_abs_params.numel()} - index {index} ---")
+        # # print(f"PRUNE: {self.p} - num params {flattened_abs_params.numel()} - index {index} ---")
         return self.mask
 
 

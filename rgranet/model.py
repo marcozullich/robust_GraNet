@@ -235,10 +235,12 @@ class Model(torch.nn.Module):
             if self.mask is not None and not isinstance(self.mask, NoMask) and update_mask_this_ite:
                 self.mask.regrow()
 
+
             if step_optimizer_this_ite:
                 if not isinstance(self.mask, NoMask):
                     self.mask.suppress_grad()
                 self.optimizer.step()
+                self.mask.apply()
             
             accuracy_meter.update(acc_fn(preds, labels), n=data.shape[0])
             loss_meter.update(loss.item(), n=data.shape[0])

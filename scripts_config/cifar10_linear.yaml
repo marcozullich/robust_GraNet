@@ -28,7 +28,7 @@ train:
     hyperparameters:
       weight_decay: !!float 5e-4
       momentum: 0.9
-      nesterov: True
+      nesterov: False
       lr: 0.1
     scheduler:
       class: "MultiStepLR"

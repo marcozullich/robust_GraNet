@@ -49,8 +49,22 @@ class CustomLinear(torch.nn.Module):
 # m.regenerate(regenerated_params)
 # m
 
-p = A.PruningRateCubicSchedulingWithRegrowth(0, .5, 10, 0, 2)
-for i in range(25):
+freq = 50
+ites = 391
+
+current_density = 100
+p = A.PruningRateCubicSchedulingWithRegrowth(
+    initial_sparsity=0,
+    final_sparsity=.9,
+    pruning_frequency=50,
+    tot_num_pruning_ite=391
+)
+for i in range(0, freq * ites):
     p.step()
-    print(i, p.current_sparsity, p.current_pruning_rate, p.regrowth_rate)
+    if i % freq == 0 :
+        density_after_pruning = current_density * (1-p.current_pruning_rate)
+        density_after_regrowth = (current_density - density_after_pruning) * p.regrowth_rate + density_after_pruning
+        print(f"{i} - p {p.current_pruning_rate:.5f} - dens {current_density:.5f} - after pru {density_after_pruning:.5f} - r {p.regrowth_rate} - after reg {density_after_regrowth}")
+        current_density = density_after_regrowth
+    # print(i, p.current_sparsity, p.current_pruning_rate, p.regrowth_rate)
 p

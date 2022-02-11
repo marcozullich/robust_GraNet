@@ -17,7 +17,7 @@ train:
   checkpoint_path: checkpoints/cifar10.pt #!!null
   checkpoint_save_time: "epoch"
   resume_training: False
-  final_model_save_path: models/cifar10_pruned.pt
+  final_model_save_path: models/cifar10_pruned_nonesterov.pt
   dtype: half
   amp_hyperparameters:
     opt_level: "O0"
@@ -28,7 +28,7 @@ train:
     hyperparameters:
       weight_decay: !!float 5e-4
       momentum: 0.9
-      nesterov: True
+      nesterov: False
     scheduler:
       class: "CyclicLRWithBurnout"
       update_time: "iteration"
