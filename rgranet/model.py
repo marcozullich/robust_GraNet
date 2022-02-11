@@ -1,11 +1,8 @@
-from mimetypes import init
-from tabnanny import check
 import torch
 from enum import Enum
 from typing import Union
 import os
 from apex import amp
-import torchvision
 
 from .pruning_mask import _Mask, LMMask, NoMask
 from .pytorch_utils import AverageMeter, accuracy as acc_fn

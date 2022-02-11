@@ -66,8 +66,11 @@ def main():
     make_subdirectory(config["train"]["checkpoint_path"])
     make_subdirectory(config["train"]["final_model_save_path"])
 
-    config["train"]["pruning"]["scheduler"]["hyperparameters"]["tot_num_pruning_ite"] = tot_training_ite_without_burnout // config["train"]["pruning"]["hyperparameters"]["pruning_frequency"]
+    if config["train"]["pruning"]["scheduler"]["hyperparameters"].get("tot_num_pruning_ite") is None:
+        config["train"]["pruning"]["scheduler"]["hyperparameters"]["tot_num_pruning_ite"] = tot_training_ite_without_burnout // config["train"]["pruning"]["hyperparameters"]["pruning_frequency"]
     config["train"]["pruning"]["scheduler"]["pruning_frequency"] = config["train"]["pruning"]["hyperparameters"]["pruning_frequency"]
+
+    print(config["train"]["pruning"]["scheduler"]["hyperparameters"].get("tot_num_pruning_ite"), config["train"]["pruning"]["scheduler"]["pruning_frequency"])
 
     net = Model(
         module=net_module,
