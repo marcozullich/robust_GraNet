@@ -19,9 +19,6 @@ class _Mask():
         is_global:bool=True,
         pruning_frequency:int=1,
         regrowth_frequency:int=1,
-        step_start_prune:int=0,
-        step_start_regrow:int=0
-
     ):
         scheduling_kwargs = coalesce(scheduling_kwargs, {"initial_pruning_rate": init_pruning_rate})
         scheduling_kwargs["pruning_frequency"] = pruning_frequency

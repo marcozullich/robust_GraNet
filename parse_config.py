@@ -1,4 +1,3 @@
-import yaml
 import os
 import timm
 import torch
@@ -10,7 +9,7 @@ from rgranet import lr_schedulers
 from rgranet import pruning_mask as msk
 from rgranet import pruning_rate_schedule as prs
 from rgranet import model
-from rgranet.utils import yaml_load
+from rgranet.utils import yaml_load, coalesce
 
 
 
@@ -106,6 +105,6 @@ def parse_config(config_path):
     parse_mask(config)
     parse_pr_scheduler(config)
     config["data"]["hyperparameters"]["root"] = parse_path(config["data"]["hyperparameters"]["root"])
-    config["util"]["telegram_config_name"] = parse_path(config["util"]["telegram_config_name"])
+    config["util"]["telegram_config_name"] = parse_path(config["util"]["telegram_config_name"]) if config["util"]["telegram_config_name"] is not None else None
 
     return config
