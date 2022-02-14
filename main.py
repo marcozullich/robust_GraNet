@@ -49,7 +49,9 @@ def main():
     config = parse_config.parse_config(args.config_path)
 
     deterministic = coalesce(config["deterministic"], False)
-    torch.use_deterministic_algorithms(deterministic)
+    if deterministic:
+        # guard for previous torch versions
+        torch.use_deterministic_algorithms(deterministic)
 
     trainloader, testloader, _ = config["data"]["dataset_loader"](**config["data"]["hyperparameters"])
 
