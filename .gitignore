@@ -7,6 +7,10 @@ models/
 checkpoints/
 telegram_config/
 
+# cluster-specific scripts and options
+scripts/
+*.out
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
