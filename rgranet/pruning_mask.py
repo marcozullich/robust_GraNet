@@ -37,8 +37,9 @@ class _Mask():
         self.net = net
         for name, _ in net.filtered_named_parameters(self.params_to_prune):
             self.effective_params_to_prune.append(name)
-        self.mask = self._init_mask()
         self.device = coalesce(device, next(iter(self.net.parameters())).device)
+        self.mask = self._init_mask()
+        
 
     def _init_mask(self):
         mask = Odict()
