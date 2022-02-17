@@ -116,8 +116,7 @@ def parse_config(config_path):
 
     if config.get("num_run") is not None:
         if config["num_run"].strip().startswith("$"):
-            num_run = parse_env(config["num_run"])
-            if config["num_run"] == num_run or config["num_run"] == "" or (not is_int(config["num_run"])): # if env variable does not exist, generate random hash
+            if config["num_run"] == "" or (not is_int(config["num_run"])): # if env variable does not exist, generate random hash
                 config["num_run"] = int(random.random()*1e6)
         filename, ext = os.path.splitext(config["train"]["final_model_save_path"])
         config["train"]["final_model_save_path"] = f"{filename}_{config['num_run']}{ext}"
