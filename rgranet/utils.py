@@ -24,6 +24,13 @@ def yaml_load(file_path):
     with open(file_path, 'r') as f:
         return yaml.load(f, Loader=yaml.SafeLoader)
 
+def is_int(string):
+    try:
+        int(string)
+        return True
+    except ValueError:
+        return False
+
 class DictOfLists(dict):
     def __init__(self, keys:Collection=None):
         if keys is None:
