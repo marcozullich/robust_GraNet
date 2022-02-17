@@ -47,6 +47,8 @@ def main():
     args = parser.parse_args()
 
     config = parse_config.parse_config(args.config_path)
+    
+    print(f"save file {config['train']['final_model_save_path']}")
 
     deterministic = coalesce(config["deterministic"], False)
     if deterministic:

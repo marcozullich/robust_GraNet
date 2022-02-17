@@ -1,7 +1,7 @@
 import os
 import timm
 import torch
-
+import random
 
 from rgranet import architectures 
 from rgranet import data
@@ -11,10 +11,12 @@ from rgranet import pruning_rate_schedule as prs
 from rgranet import model
 from rgranet.utils import yaml_load, coalesce
 
+def parse_env(string):
+    return os.path.expandvars(string)
 
 
 def parse_path(path):
-    return os.path.expanduser(os.path.expandvars(path))
+    return os.path.expanduser(parse_env(path))
 
 def parse_str(string):
     if string.strip() == "None":
@@ -110,5 +112,13 @@ def parse_config(config_path):
     parse_pr_scheduler(config)
     config["data"]["hyperparameters"]["root"] = parse_path(config["data"]["hyperparameters"]["root"])
     config["util"]["telegram_config_name"] = parse_path(config["util"]["telegram_config_name"]) if config["util"]["telegram_config_name"] is not None else None
+
+    if config.get("num_run") is not None:
+        if config["num_run"].strip().startswith("$"):
+            num_run = parse_env(config["num_run"])
+            if config["num_run"] == num_run: # if env variable does not exist, generate random hash
+                config["num_run"] = int(random.random()*1e6)
+        filename, ext = os.path.splitext(config["train"]["final_model_save_path"])
+        config["train"]["final_model_save_path"] = f"{filename}_{config['num_run']}{ext}"
 
     return config
