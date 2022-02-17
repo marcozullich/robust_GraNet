@@ -68,11 +68,22 @@ def main():
     make_subdirectory(config["train"]["checkpoint_path"])
     make_subdirectory(config["train"]["final_model_save_path"])
 
-    if config["train"]["pruning"]["scheduler"]["hyperparameters"].get("tot_num_pruning_ite") is None:
-        config["train"]["pruning"]["scheduler"]["hyperparameters"]["tot_num_pruning_ite"] = tot_training_ite_without_burnout // config["train"]["pruning"]["hyperparameters"]["pruning_frequency"]
-    config["train"]["pruning"]["scheduler"]["pruning_frequency"] = config["train"]["pruning"]["hyperparameters"]["pruning_frequency"]
+    
+    
 
-    print(config["train"]["pruning"]["scheduler"]["hyperparameters"].get("tot_num_pruning_ite"), config["train"]["pruning"]["scheduler"]["pruning_frequency"])
+    if config["train"]["pruning"].get("scheduler") is None:
+        config["train"]["pruning"]["hyperparameters"]["tot_num_pruning_ite"] = tot_training_ite_without_burnout // config["train"]["pruning"]["hyperparameters"]["pruning_frequency"]
+    else:
+        if config["train"]["pruning"]["scheduler"]["hyperparameters"].get("tot_num_pruning_ite") is None:
+            config["train"]["pruning"]["scheduler"]["hyperparameters"]["tot_num_pruning_ite"] = tot_training_ite_without_burnout // config["train"]["pruning"]["scheduler"]["hyperparameters"]["pruning_frequency"]
+        # config["train"]["pruning"]["scheduler"]["pruning_frequency"] = config["train"]["pruning"]["hyperparameters"]["pruning_frequency"]
+
+
+    mask_kwargs = {**config["train"]["pruning"]["hyperparameters"]}
+    if pr_sched_class:=config["train"]["pruning"].get("scheduler") is not None:
+        mask_kwargs["pruning_rate_schedule"] = pr_sched_class
+        if pr_sched_hyp:=config["train"]["pruning"]["scheduler"].get("hyperparameters"):
+            mask_kwargs["scheduling_kwargs"] = pr_sched_hyp
 
     net = Model(
         module=net_module,
@@ -84,12 +95,8 @@ def main():
         loss_fn=config["train"]["loss"](),
         mask=None,
         mask_class=config["train"]["pruning"]["mask_class"],
-        mask_kwargs={
-            **config["train"]["pruning"]["hyperparameters"],
-            "pruning_rate_schedule": config["train"]["pruning"]["scheduler"]["class"],
-            "scheduling_kwargs": config["train"]["pruning"]["scheduler"]["hyperparameters"]
-        },
-        name=config["net"]
+        mask_kwargs=mask_kwargs,
+        name=config["net"],
 
     )
 

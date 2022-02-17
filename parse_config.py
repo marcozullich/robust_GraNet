@@ -78,19 +78,23 @@ def parse_mask(config):
         "None": msk.NoMask,
         "NoMask": msk.NoMask,
         "LMMask": msk.LMMask,
+        "GraNetMask": msk.GraNetMask,
+        "RGraNetMask": msk.RGraNetMask,
+        "GradualPruningMask": msk.GradualPruningMask,
     }
     config["train"]["pruning"]["mask_class"] = parser[config["train"]["pruning"]["mask_class"]]
 
 def parse_pr_scheduler(config):
-    parser = {
-        "None": prs.NoPruningRateScheduling,
-        "NoPruningRateScheduling": prs.NoPruningRateScheduling,
-        "PruningRateCosineScheduling": prs.PruningRateCosineScheduling,
-        "PruningRateLinearScheduling": prs.PruningRateLinearScheduling,
-        "PruningRateCubicScheduling": prs.PruningRateCubicScheduling,
-        "PruningRateCubicSchedulingWithRegrowth": prs.PruningRateCubicSchedulingWithRegrowth,
-    }
-    config["train"]["pruning"]["scheduler"]["class"]= parser[config["train"]["pruning"]["scheduler"]["class"]]
+    if config["train"]["pruning"].get("scheduler") is not None:
+        parser = {
+            "None": prs.NoPruningRateScheduling,
+            "NoPruningRateScheduling": prs.NoPruningRateScheduling,
+            "PruningRateCosineScheduling": prs.PruningRateCosineScheduling,
+            "PruningRateLinearScheduling": prs.PruningRateLinearScheduling,
+            "PruningRateCubicScheduling": prs.PruningRateCubicScheduling,
+            "PruningRateCubicSchedulingWithRegrowth": prs.PruningRateCubicSchedulingWithRegrowth,
+        }
+        config["train"]["pruning"]["scheduler"]["class"]= parser[config["train"]["pruning"]["scheduler"]["class"]]
 
 def parse_config(config_path):
     config = yaml_load(config_path)

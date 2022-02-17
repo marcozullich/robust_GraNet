@@ -2,13 +2,18 @@ import math
 
 
 class _PruningRateScheduling:
-    def __init__(self, initial_pruning_rate):
+    def __init__(self, initial_pruning_rate, tot_num_pruning_ite:int, pruning_frequency:int, initial_ite_pruning:int=0):
         self.initial_pruning_rate = initial_pruning_rate
         self.current_pruning_rate = initial_pruning_rate
+        self.tot_num_pruning_ite = tot_num_pruning_ite
+        self.initial_ite_pruning = initial_ite_pruning
+        self.pruning_frequency = pruning_frequency
         self.regrowth_rate = None
+        self.step_counter = 0
+        
 
     def step(self):
-        raise NotImplementedError("This is an abstract class")
+        self.step_counter += 1
 
     def supports_regrowth(self):
         return self.regrowth_rate is not None
@@ -23,7 +28,10 @@ class _PruningRateScheduling:
             setattr(self, attr, value)
     
     def can_prune(self):
-        return True
+        return self.step_counter >= self.initial_ite_pruning and (not self.has_ended()) and ((self.step_counter + self.initial_ite_pruning) % self.pruning_frequency == 0)
+    
+    def has_ended(self):
+        return self.step_counter > (self.tot_num_pruning_ite * self.pruning_frequency + self.initial_ite_pruning)
 
 class NoPruningRateScheduling(_PruningRateScheduling):
     def step(self):
@@ -31,15 +39,16 @@ class NoPruningRateScheduling(_PruningRateScheduling):
     
 
 class PruningRateCosineScheduling(_PruningRateScheduling):
-    def __init__(self, initial_pruning_rate, tot_num_ite, pruning_rate_min=5e-3):
-        super().__init__(initial_pruning_rate)
-        self.T_max = tot_num_ite
-        self.eta_min = pruning_rate_min
+    def __init__(self, initial_pruning_rate, tot_num_pruning_ite, pruning_rate_min=5e-3, initial_ite_pruning=0, pruning_frequency=1):
+        super().__init__(initial_pruning_rate, tot_num_pruning_ite, pruning_frequency, initial_ite_pruning)
+        self.tot_num_pruning_ite = tot_num_pruning_ite
+        self.pruning_rate_min = pruning_rate_min
         self.step_counter = 0
     
     def step(self):
-        self.current_pruning_rate = self.eta_min + .5 * (self.current_pruning_rate - self.eta_min) * (1 + math.cos(math.pi * self.step_counter / self.T_max))
-        self.step_counter += 1
+        if self.can_prune():
+            self.current_pruning_rate = self.pruning_rate_min + .5 * (self.current_pruning_rate - self.pruning_rate_min) * (1 + math.cos(math.pi * (self.step_counter // self.pruning_frequency) / self.tot_num_pruning_ite))
+        super().step()
     
     def state_dict(self):
         return {
@@ -50,25 +59,28 @@ class PruningRateCosineScheduling(_PruningRateScheduling):
 
 
 class PruningRateLinearScheduling(_PruningRateScheduling):
-    def __init__(self, initial_pruning_rate, final_pruning_rate, tot_num_ite):
+    def __init__(self, initial_pruning_rate, final_pruning_rate, tot_num_pruning_ite):
         super().__init__(initial_pruning_rate)
         self.final_pruning_rate = final_pruning_rate
-        self.T_max = tot_num_ite
-        self.update_step = (self.final_pruning_rate - self.initial_pruning_rate) / self.T_max
+        self.tot_num_pruning_ite = tot_num_pruning_ite
+        self.update_step = (self.final_pruning_rate - self.initial_pruning_rate) / self.tot_num_pruning_ite
     
     def step(self):
-        self.current_pruning_rate -= self.update_step
+        if self.can_prune():
+            self.current_pruning_rate -= self.update_step
 
 class PruningRateCubicScheduling(_PruningRateScheduling):
     def __init__(self, initial_sparsity:float, final_sparsity:float, tot_num_pruning_ite:int, initial_ite_pruning:int=0, pruning_frequency:int=1):
-        super().__init__(0)
+        super().__init__(
+            initial_ite_pruning=initial_ite_pruning,
+            tot_num_pruning_ite=tot_num_pruning_ite,
+            pruning_frequency=pruning_frequency,
+            initial_pruning_rate=0.0
+        )
         self.initial_sparsity = initial_sparsity
         self.current_sparsity = initial_sparsity
         self.final_sparsity = final_sparsity
-        self.T_max = tot_num_pruning_ite
-        self.pruning_frequency = pruning_frequency
-        self.initial_ite_pruning = initial_ite_pruning
-        self.update_denominator = self.T_max * self.pruning_frequency
+        self.update_denominator = self.tot_num_pruning_ite * self.pruning_frequency
         self.delta_sparsity = self.final_sparsity - self.initial_sparsity
         self.step_counter = 0
         self.current_pruning_rate = 0.0
@@ -83,7 +95,7 @@ class PruningRateCubicScheduling(_PruningRateScheduling):
             self.current_sparsity = new_sparsity
         else:
             self.current_pruning_rate = 0.0
-        self.step_counter += 1
+        super().step()
     
     def state_dict(self):
         return {
@@ -92,8 +104,6 @@ class PruningRateCubicScheduling(_PruningRateScheduling):
             "step_counter": self.step_counter
         }
     
-    def can_prune(self):
-        return self.step_counter >= self.initial_ite_pruning and self.step_counter <= (self.T_max * self.pruning_frequency + self.initial_ite_pruning) and ((self.step_counter + self.initial_ite_pruning) % self.pruning_frequency == 0)
     
 class PruningRateCubicSchedulingWithRegrowth(PruningRateCubicScheduling):
     def __init__(self, initial_sparsity:float, final_sparsity:float, tot_num_pruning_ite:int, initial_ite_pruning:int=0, pruning_frequency:int=1):

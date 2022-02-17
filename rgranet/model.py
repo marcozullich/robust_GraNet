@@ -4,7 +4,7 @@ from typing import Union
 import os
 from apex import amp
 
-from .pruning_mask import _Mask, LMMask, NoMask
+from .pruning_mask import _Mask, GraNetMask, GradualPruningMask, LMMask, NoMask, RGraNetMask
 from .pytorch_utils import AverageMeter, accuracy as acc_fn
 from .model_logger import ModelLogger, Verbosity, Milestone
 from .pytorch_utils import set_dtype_
@@ -204,19 +204,14 @@ class Model(torch.nn.Module):
 
             if self.mask is not None and (not isinstance(self.mask, NoMask)) and update_mask_this_ite:
                 self.mask.step()
-                # print(i, self.mask.scheduling.current_pruning_rate, self.mask.scheduling.can_prune(), self.mask.scheduling.step_counter, self.mask.scheduling.current_sparsity, self.mask.scheduling.regrowth_rate)
-                self.mask.prune()
-                # if self.mask.scheduling.supports_regrowth:
-                #     # grad_copy = self._clone_grad
-                #     pass
+                if isinstance(self.mask, (RGraNetMask, GradualPruningMask)):
+                    # RGraNet: prune before weights update and gradient computation
+                    self.mask.prune()
 
-            # start = torch.cuda.Event(enable_timing=True)
-            # end = torch.cuda.Event(enable_timing=True)
-            # start.record()
+
+
             preds = self.net(data)
-            # end.record()
-            # torch.cuda.synchronize()
-            # times.append(start.elapsed_time(end))
+
             loss = self.loss_fn(preds, labels)
 
             step_optimizer_this_ite = ((i + 1) % num_ite_optimizer_step == 0) and (not burnout)
@@ -229,7 +224,8 @@ class Model(torch.nn.Module):
             if clip_grad_norm:
                 torch.nn.utils.clip_grad_norm_(self.net.parameters(), 1)
 
-            if self.mask is not None and not isinstance(self.mask, NoMask) and update_mask_this_ite:
+            if self.mask is not None and isinstance(self.mask, (RGraNetMask, GradualPruningMask)) and update_mask_this_ite:
+                # RGraNet: regrow after gradient computation, before weights update
                 self.mask.regrow()
 
 
@@ -237,16 +233,18 @@ class Model(torch.nn.Module):
                 if not isinstance(self.mask, NoMask):
                     self.mask.suppress_grad()
                 self.optimizer.step()
-                self.mask.apply()
+                if not isinstance(self.mask, NoMask):
+                    self.mask.apply()
+            
+            if isinstance(self.mask, GraNetMask):
+                # GraNet: prune and regrow AFTER weights update
+                self.mask.prune()
+                self.mask.regrow()
             
             accuracy_meter.update(acc_fn(preds, labels), n=data.shape[0])
             loss_meter.update(loss.item(), n=data.shape[0])
             if self.scheduler_update_time == TrainingMilestone.END_ITERATION and step_optimizer_this_ite:
                 self.scheduler.step()
-            # if self.mask is not None and update_mask_this_ite:
-                # if grad_copy is not None:
-                #     self._overwrite_grad(grad_copy)
-                # self.mask.step()
             
             
 

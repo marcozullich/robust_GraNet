@@ -49,22 +49,40 @@ class CustomLinear(torch.nn.Module):
 # m.regenerate(regenerated_params)
 # m
 
-freq = 50
+freq = 391
+ep = 50
 ites = 391
+density = 1.0
 
-current_density = 100
-p = A.PruningRateCubicSchedulingWithRegrowth(
-    initial_sparsity=0,
-    final_sparsity=.9,
-    pruning_frequency=50,
-    tot_num_pruning_ite=391
+p = A.PruningRateCubicScheduling(
+    initial_ite_pruning=0,
+    initial_sparsity=1.0 - density,
+    final_sparsity=0.9,
+    tot_num_pruning_ite=(ep * ites) // freq,
+    pruning_frequency=freq,
 )
-for i in range(0, freq * ites):
+
+for i in range(ites*ep):
     p.step()
-    if i % freq == 0 :
-        density_after_pruning = current_density * (1-p.current_pruning_rate)
-        density_after_regrowth = (current_density - density_after_pruning) * p.regrowth_rate + density_after_pruning
-        print(f"{i} - p {p.current_pruning_rate:.5f} - dens {current_density:.5f} - after pru {density_after_pruning:.5f} - r {p.regrowth_rate} - after reg {density_after_regrowth}")
-        current_density = density_after_regrowth
-    # print(i, p.current_sparsity, p.current_pruning_rate, p.regrowth_rate)
-p
+    if (pr := p.current_pruning_rate) > 0.0:
+        densa = density * (1 - pr)
+        print(f"{i} - {pr:.6f} - dt-1 {density:.4f} - dt {densa:.4f} - hyp {(densa * .5) + (densa * .25)}")
+        density = densa
+
+# current_density = 100
+# p = A.PruningRateCubicSchedulingWithRegrowth(
+#     initial_sparsity=0,
+#     final_sparsity=.9,
+#     pruning_frequency=50,
+#     tot_num_pruning_ite=391
+# )
+# for i in range(0, freq * ites):
+#     p.step()
+#     if i % freq == 0 :
+#         density_after_pruning = current_density * (1-p.current_pruning_rate)
+#         density_after_regrowth = (current_density - density_after_pruning) * p.regrowth_rate + density_after_pruning
+#         print(f"{i} - p {p.current_pruning_rate:.5f} - dens {current_density:.5f} - after pru {density_after_pruning:.5f} - r {p.regrowth_rate} - after reg {density_after_regrowth}")
+#         current_density = density_after_regrowth
+#     # print(i, p.current_sparsity, p.current_pruning_rate, p.regrowth_rate)
+# p
+
