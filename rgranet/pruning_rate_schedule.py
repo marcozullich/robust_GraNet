@@ -106,16 +106,17 @@ class PruningRateCubicScheduling(_PruningRateScheduling):
     
     
 class PruningRateCubicSchedulingWithRegrowth(PruningRateCubicScheduling):
-    def __init__(self, initial_sparsity:float, final_sparsity:float, tot_num_pruning_ite:int, initial_ite_pruning:int=0, pruning_frequency:int=1):
+    def __init__(self, initial_sparsity:float, final_sparsity:float, tot_num_pruning_ite:int, initial_ite_pruning:int=0, pruning_frequency:int=1, regrowth_to_prune_ratio:float=1.0):
         super().__init__(initial_sparsity, final_sparsity, tot_num_pruning_ite, initial_ite_pruning=initial_ite_pruning, pruning_frequency=pruning_frequency)
         self.regrowth_rate = 0.0
+        self.k = regrowth_to_prune_ratio
     
     def step(self):
         prev_density =  1 - self.current_sparsity
         super().step()
         target_density = 1 - self.current_sparsity
         if prev_density > target_density:
-            delta = 4 * prev_density * target_density - 3 * prev_density * prev_density
+            delta = 4 * self.k * prev_density * target_density - 4 * (self.k - 1) * prev_density * prev_density
             if delta < 0:
                 raise ValueError(f"Delta is negative. Target density ({target_density:.4f}) should be ≥ ¾ × previous density ({prev_density:.4f}). Currently target density is {target_density/prev_density:.4f}. Try decreasing the final sparsity or increasing the numbe of pruning iterations.")
 
@@ -124,7 +125,7 @@ class PruningRateCubicSchedulingWithRegrowth(PruningRateCubicScheduling):
 
             density_before_regrowth = prev_density * (1 - corrected_pruning_rate)
 
-            self.regrowth_rate = (prev_density - density_before_regrowth) * corrected_pruning_rate / (1 - density_before_regrowth)
+            self.regrowth_rate = (prev_density - density_before_regrowth) * self.k * corrected_pruning_rate / (1 - density_before_regrowth)
             # density_before_regrowth * corrected_pruning_rate / (1 - density_before_regrowth)
             
 
