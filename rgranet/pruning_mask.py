@@ -92,7 +92,7 @@ class _Mask():
     
     def regrow(self):
         if self.scheduling.regrowth_rate > 0.0:
-            regen_mask = gradient_based_neuroregeneration(self.net, self.params_to_prune, self.scheduling.regrowth_rate, self.is_global)
+            regen_mask = gradient_based_neuroregeneration(self.net, self.params_to_prune, self.scheduling.regrowth_rate, is_global=self.is_global)
             self.regenerate(regen_mask)
             # print(f"\tsparsity after regrowth {self.get_mask_sparsity():.6f}")
     
