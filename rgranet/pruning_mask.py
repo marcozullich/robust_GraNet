@@ -1,4 +1,4 @@
-from typing import Collection, Union
+from typing import Collection, List, Union
 from collections import OrderedDict as Odict
 import torch
 
@@ -95,11 +95,16 @@ class _Mask():
             regen_mask = gradient_based_neuroregeneration(self.net, self.params_to_prune, self.scheduling.regrowth_rate, self.is_global)
             self.regenerate(regen_mask)
             # print(f"\tsparsity after regrowth {self.get_mask_sparsity():.6f}")
-        
+    
+    def get_nonzero_weights_count_per_module(self) -> List:
+        return {n: torch.nonzero(msk).size(0) for (n, msk) in self.mask.items()}
  
     def get_nonzero_weights_count(self):
-        return sum(torch.nonzero(msk).size(0) for (_, msk) in self.mask.items())
+        return sum(self.get_nonzero_weights_count_per_module().values())
     
+    def get_zero_weights_count_per_module(self) -> List:
+        return {n: (m.numel() - z) for (n, m), (_, z) in zip(self.mask.items(), self.get_nonzero_weights_count_per_module().items())}
+
     def get_zero_weights_count(self):
         return self.numel() - self.get_nonzero_weights_count()
 
@@ -251,8 +256,12 @@ class GraNetMask(LMMask):
         super().prune()
         # 2. magnitude death: prune the weights locally for each layer according to the secondary scheduler
         if self.allow_death_and_regrowth_phase():
+            mask_statistics_before = self.get_zero_weights_count_per_module()
             super().prune(pruning_rate=self.r, is_global=False)
-            self.regrow()
+            mask_statistics_after = self.get_zero_weights_count_per_module()
+            # prepare for regrowth
+            self.num_params_to_regrow = {n: (mask_statistics_after[n] - m_bef) for n, m_bef in mask_statistics_before.items()}
+            
 
     def allow_death_and_regrowth_phase(self):
         return self.r > 0.0 and self.p > 0.0 and not self.scheduling.has_ended()
@@ -270,13 +279,11 @@ class GraNetMask(LMMask):
     def regrow(self):
         # regrow is local and applied only to the weights pruned in this ite, hence the need for determining a mask_delta
         if self.allow_death_and_regrowth_phase():
-            mask_delta = {n: ~(m.logical_xor(self.mask[n])) for n, m in self.old_mask.items()} if hasattr(self, "old_mask") else self.mask
-
-            regen_mask = gradient_based_neuroregeneration(self.net, self.params_to_prune, self.r, is_global=False, mask=mask_delta)
+            regen_mask = gradient_based_neuroregeneration(self.net, self.effective_params_to_prune, regrowth_rate=None, is_global=False, num_to_regrow=self.num_params_to_regrow)
             self.regenerate(regen_mask)
     
     def _update(self, is_global, pruning_rate=None):
-        self.old_mask = Odict({k: v.clone() for k, v in self.mask.items()})
+        # self.old_mask = Odict({k: v.clone() for k, v in self.mask.items()})
         super()._update(is_global=is_global, pruning_rate=pruning_rate)
 
 
