@@ -170,6 +170,7 @@ class RGraNetMask(LMMask):
         final_sparsity:float=.9,
         initial_ite_pruning:int=0,
         pruning_frequency:int=20,
+        regrowth_to_prune_ratio:float=1.0,
     ):
         super().__init__(
             init_pruning_rate=init_pruning_rate,
@@ -181,7 +182,8 @@ class RGraNetMask(LMMask):
                 "final_sparsity": final_sparsity,
                 "initial_ite_pruning": initial_ite_pruning,
                 "pruning_frequency": pruning_frequency,
-                "tot_num_pruning_ite": tot_num_pruning_ite
+                "tot_num_pruning_ite": tot_num_pruning_ite,
+                "regrowth_to_prune_ratio": regrowth_to_prune_ratio,
             },
             is_global=True,
         )
