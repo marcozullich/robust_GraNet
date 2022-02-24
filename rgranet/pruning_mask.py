@@ -90,9 +90,9 @@ class _Mask():
         self.scheduling.step()
         self.p = self.scheduling.current_pruning_rate
     
-    def regrow(self):
-        if self.scheduling.regrowth_rate > 0.0:
-            regen_mask = gradient_based_neuroregeneration(self.net, self.params_to_prune, self.scheduling.regrowth_rate, is_global=self.is_global)
+    def regrow(self, named_gradients=None):
+        if self.scheduling.can_regrow() and self.scheduling.regrowth_rate > 0.0:
+            regen_mask = gradient_based_neuroregeneration(self.net, self.params_to_prune, self.scheduling.regrowth_rate, is_global=self.is_global, named_gradients=named_gradients)
             self.regenerate(regen_mask)
             # print(f"\tsparsity after regrowth {self.get_mask_sparsity():.6f}")
     
@@ -171,6 +171,8 @@ class RGraNetMask(LMMask):
         initial_ite_pruning:int=0,
         pruning_frequency:int=20,
         regrowth_to_prune_ratio:float=1.0,
+        regrowth_delay:int=0,
+        accumulate_gradients_before_regrowth:bool=False,
     ):
         super().__init__(
             init_pruning_rate=init_pruning_rate,
@@ -184,9 +186,14 @@ class RGraNetMask(LMMask):
                 "pruning_frequency": pruning_frequency,
                 "tot_num_pruning_ite": tot_num_pruning_ite,
                 "regrowth_to_prune_ratio": regrowth_to_prune_ratio,
+                "initial_ite_regrow": initial_ite_pruning + regrowth_delay,
+                "regrowth_frequency": pruning_frequency,
             },
             is_global=True,
         )
+        self.accumulate_gradients_before_regrowth = accumulate_gradients_before_regrowth
+        
+
 
 class GradualPruningMask(LMMask):
     def __init__(

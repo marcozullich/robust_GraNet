@@ -12,7 +12,8 @@ def _neuroregenerate_params(
     regrowth_rate: float,
     *named_gradients: Collection,
     device: Union[str, torch.device] = None,
-    num_to_regrow: int = None
+    num_to_regrow: int = None,
+    gradients: Collection = None,
 ) -> Odict:
     pruned_params_abs_grad = torch.cat([g[~mask[name]].abs() for name, g in named_gradients])
     if num_to_regrow is None:
@@ -37,14 +38,15 @@ def gradient_based_neuroregeneration(
     num_to_regrow:Union[int, Dict[str, int]]=None,
     is_global:bool=False,
     mask:Odict=None,
-    device:Union[str, torch.device]=None
+    device:Union[str, torch.device]=None,
+    named_gradients:Collection=None,
 ) -> Odict:
-    regrowth_rate, num_to_regrow = validate_parse_args(regrowth_rate, num_to_regrow, is_global, len(params_to_prune))
+    regrowth_rate, num_to_regrow = validate_parse_regrowth_rate_and_nums(regrowth_rate, num_to_regrow, is_global, len(params_to_prune))
 
     if num_to_regrow is not None:
         assert all(n>=0 for n in num_to_regrow.values()), f"All numbers to regrow must be positive. Found {[(k, n) for k, n in num_to_regrow.items() if n<0]}"
 
-    named_gradients = ((n, p.grad) for n, p in net.filtered_named_parameters(params_to_prune))
+    named_gradients = validate_parse_gradients_and_net(named_gradients, net, params_to_prune)
     mask = coalesce(mask, net.mask)
     device = coalesce(device, mask.device)
     if is_global:
@@ -56,7 +58,7 @@ def gradient_based_neuroregeneration(
 
     return regenerated_params
     
-def validate_parse_args(regrowth_rate:int, num_to_regrow:Union[int, Dict[str, int]], is_global:bool, num_params_to_prune:int):
+def validate_parse_regrowth_rate_and_nums(regrowth_rate:int, num_to_regrow:Union[int, Dict[str, int]], is_global:bool, num_params_to_prune:int):
     if regrowth_rate is None and num_to_regrow is None:
         raise ValueError("Either regrowth_rate or num_to_regrow must be specified")
     elif regrowth_rate is not None and num_to_regrow is not None:
@@ -69,8 +71,17 @@ def validate_parse_args(regrowth_rate:int, num_to_regrow:Union[int, Dict[str, in
             else:
                 if len(num_to_regrow) != num_params_to_prune:
                     raise ValueError("If num_to_regrow is a list, its size must be equal to the number of blocks to prune")
+
     
     return regrowth_rate, num_to_regrow
+
+def validate_parse_gradients_and_net(gradients:Collection, net:torch.nn.Module, params_to_prune:Collection):
+    if gradients is None and net is None:
+        raise ValueError(f"Either gradients or net must be specified")
+    if gradients is None:
+        return ((n, p.grad) for n, p in net.filtered_named_parameters(params_to_prune))
+    return gradients
+    
 
     
 

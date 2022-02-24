@@ -1,8 +1,10 @@
+from numpy import gradient
 import torch
 from enum import Enum
 from typing import Union
 import os
 from apex import amp
+from collections import OrderedDict as Odict
 
 from .pruning_mask import _Mask, GraNetMask, GradualPruningMask, LMMask, NoMask, RGraNetMask
 from .pytorch_utils import AverageMeter, accuracy as acc_fn
@@ -61,6 +63,7 @@ class Model(torch.nn.Module):
             self.mask = mask_class(**mask_kwargs, net=self)
         
         self.name = name
+        self.gradients_accumulator = None
         
 
     def _get_parameters_names(self):
@@ -92,7 +95,25 @@ class Model(torch.nn.Module):
     def _overwrite_grad(self, grad):
         for p, g in zip(self.net.parameters(), grad):
             p.grad = g
+    
+    def _accumulate_grad(self):
+        if self.gradients_accumulator is None:
+            self.gradients_accumulator = Odict({n: p.grad.detach().clone() for n, p in self.named_parameters()})
+        else:
+            for n, p in self.named_parameters():
+                self.gradients_accumulator[n] += p.grad.detach().clone()
 
+    def _accumulate_grad_if_required(self):
+        if hasattr(self.mask.scheduling, "is_waiting_for_regrowth") and self.mask.scheduling.is_waiting_for_regrowth() and hasattr(self.mask, "accumulate_gradients_before_regrowth") and self.mask.accumulate_gradients_before_regrowth:
+                    self._accumulate_grad()
+        
+    def _drop_accumulated_grad(self):
+        self.gradients_accumulator = None
+
+    def _clip_grad_norm(self, norm:float):
+        torch.nn.utils.clip_grad_norm_(self.net.parameters(), 1)
+
+    
     def train_model(
         self,
         trainloader:torch.utils.data.DataLoader,
@@ -195,10 +216,7 @@ class Model(torch.nn.Module):
             if i < ite_start:
                 continue
             
-            # set_dtype_(data, dtype)
-            # set_dtype_(labels, dtype)
             data, labels = data.to(device), labels.to(device)
-            
             
             update_mask_this_ite = (i + 1) % num_ite_optimizer_step == 0 and not burnout
 
@@ -207,8 +225,6 @@ class Model(torch.nn.Module):
                 if isinstance(self.mask, (RGraNetMask, GradualPruningMask)):
                     # RGraNet: prune before weights update and gradient computation
                     self.mask.prune()
-
-
 
             preds = self.net(data)
 
@@ -222,11 +238,14 @@ class Model(torch.nn.Module):
                 scaled_loss.backward()
 
             if clip_grad_norm:
-                torch.nn.utils.clip_grad_norm_(self.net.parameters(), 1)
+                self._clip_grad_norm(1)
+                # torch.nn.utils.clip_grad_norm_(self.net.parameters(), 1)
+            
+            self._accumulate_grad_if_required()
 
             if self.mask is not None and isinstance(self.mask, (RGraNetMask, GradualPruningMask)) and update_mask_this_ite:
                 # RGraNet: regrow after gradient computation, before weights update
-                self.mask.regrow()
+                self.mask.regrow(named_gradients=self.gradients_accumulator)
 
 
             if step_optimizer_this_ite:
