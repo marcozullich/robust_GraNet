@@ -170,28 +170,46 @@ class RGraNetMask(LMMask):
         final_sparsity:float=.9,
         initial_ite_pruning:int=0,
         pruning_frequency:int=20,
-        regrowth_to_prune_ratio:float=1.0,
+        # regrowth_to_prune_ratio:float=1.0,
         regrowth_delay:int=0,
         accumulate_gradients_before_regrowth:bool=False,
+        death_and_regrowth_rate:int=1,
     ):
         super().__init__(
             init_pruning_rate=init_pruning_rate,
             net=net,
             params_to_prune=params_to_prune,
-            pruning_rate_schedule=schedule.PruningRateCubicSchedulingWithRegrowth,
+            pruning_rate_schedule=schedule.PruningRateCubicSchedulingWithFixedRegrowth,
             scheduling_kwargs={
                 "initial_sparsity": initial_sparsity,
                 "final_sparsity": final_sparsity,
                 "initial_ite_pruning": initial_ite_pruning,
                 "pruning_frequency": pruning_frequency,
                 "tot_num_pruning_ite": tot_num_pruning_ite,
-                "regrowth_to_prune_ratio": regrowth_to_prune_ratio,
+                # "regrowth_to_prune_ratio": regrowth_to_prune_ratio,
+                "p_regen": death_and_regrowth_rate,
                 "initial_ite_regrow": initial_ite_pruning + regrowth_delay,
                 "regrowth_frequency": pruning_frequency,
             },
             is_global=True,
         )
         self.accumulate_gradients_before_regrowth = accumulate_gradients_before_regrowth
+    
+    def prune(self):
+        num_params_before = self.get_nonzero_weights_count()
+        num_params_after_fase_1_pruning = num_params_before * (1 - self.p)
+        super().prune()
+        num_params_after_fase_2_pruning = self.get_nonzero_weights_count()
+        self.num_params_to_regrow = num_params_after_fase_2_pruning - num_params_after_fase_1_pruning
+    
+    def regrow(self, named_gradients=None):
+        if self.scheduling.can_regrow() and self.scheduling.regrowth_rate > 0.0:
+            regen_mask = gradient_based_neuroregeneration(self.net, self.params_to_prune, regrowth_rate=None, num_to_regrow=self.num_params_to_regrow, is_global=self.is_global, named_gradients=named_gradients)
+            self.regenerate(regen_mask)
+        
+            
+            
+
         
 
 

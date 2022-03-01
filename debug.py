@@ -49,25 +49,80 @@ class CustomLinear(torch.nn.Module):
 # m.regenerate(regenerated_params)
 # m
 
-freq = 391
-ep = 50
-ites = 391
+freq = 2
+ep = 1
+ites = 50
 density = 1.0
+density_shadow = 1.0
+density_shadow1 = 1.0
 
-p = A.PruningRateCubicScheduling(
+# p = A.PruningRateCubicScheduling(
+#     initial_ite_pruning=0,
+#     initial_sparsity=1.0 - density,
+#     final_sparsity=0.9,
+#     tot_num_pruning_ite=(ep * ites) // freq,
+#     pruning_frequency=freq,
+# )
+
+
+p = A.PruningRateCubicSchedulingWithRegrowth(
+    initial_sparsity=0,
+    final_sparsity=.9,
+    tot_num_pruning_ite=(ep * ites) // freq,
+    pruning_frequency=freq,
+    regrowth_frequency=freq,
+    regrowth_to_prune_ratio=3.0
+)
+
+pp = A.PruningRateCubicSchedulingWithFixedRegrowth(
+    initial_sparsity=0,
+    final_sparsity=.9,
+    tot_num_pruning_ite=(ep * ites) // freq,
+    pruning_frequency=freq,
+    p_regen=.5,
+    regrowth_frequency=freq,
     initial_ite_pruning=0,
-    initial_sparsity=1.0 - density,
-    final_sparsity=0.9,
+    initial_ite_regrow=0
+)
+
+q = A.PruningRateCubicScheduling(
+    initial_sparsity=0,
+    final_sparsity=.9,
     tot_num_pruning_ite=(ep * ites) // freq,
     pruning_frequency=freq,
 )
 
+z = A.PruningRateCubicSchedulingWithRegrowth(
+    initial_sparsity=0,
+    final_sparsity=.9,
+    tot_num_pruning_ite=(ep * ites) // freq,
+    pruning_frequency=freq,
+    regrowth_frequency=freq,
+    regrowth_to_prune_ratio=1.0
+)
+
 for i in range(ites*ep):
-    p.step()
-    if (pr := p.current_pruning_rate) > 0.0:
-        densa = density * (1 - pr)
-        print(f"{i} - {pr:.6f} - dt-1 {density:.4f} - dt {densa:.4f} - hyp {(densa * .5) + (densa * .25)}")
-        density = densa
+    pp.step()
+    # q.step()
+    # z.step()
+    pr = pp.current_pruning_rate
+    p1 = pp.fase_1_pruning_rate
+    densa = density * (1 - pr)
+    densb = density * (1 - p1)
+    print(f"{i} - p {pr} - p1 {p1} - dt {densa} - dt1 {densb}")
+    density = densb
+    # densa = density * (1 - pr)
+    # densb = densa + (1 - densa) * p.regrowth_rate
+    # densc = density_shadow * (1 - q.current_pruning_rate)
+    # densd = density_shadow1 * (1 - z.current_pruning_rate) + (1 - density_shadow1) * z.regrowth_rate
+    # print(f"{i} - p {pr:.6f} - dt-1 {density:.4f} - dt {densa:.4f} - r {p.regrowth_rate:.4f} - dt* {densb:.4f} - dt*_cub {densc:.4f} - pq {q.current_pruning_rate:.4f} - dt*_1 {densd:.4f}")
+    # density = densb
+    # density_shadow = densc
+    # density_shadow1 = densd
+    # # if (pr := p.current_pruning_rate) > 0.0:
+    #     densa = density * (1 - pr)
+    #     print(f"{i} - {pr:.6f} - dt-1 {density:.4f} - dt {densa:.4f} - hyp {(densa * .5) + (densa * .25)}")
+    #     density = densa
 
 # current_density = 100
 # p = A.PruningRateCubicSchedulingWithRegrowth(

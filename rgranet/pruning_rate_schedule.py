@@ -105,7 +105,62 @@ class PruningRateCubicScheduling(_PruningRateScheduling):
             "current_sparsity": self.current_sparsity,
             "step_counter": self.step_counter
         }
+
+class PruningRateCubicSchedulingWithFixedRegrowth(PruningRateCubicScheduling):
+    def __init__(
+        self,
+        initial_sparsity:float,
+        final_sparsity:float,
+        tot_num_pruning_ite:int,
+        initial_ite_pruning:int=0,
+        pruning_frequency:int=1,
+        p_regen:float=1.0,
+        initial_ite_regrow:int=None,
+        regrowth_frequency:int=None,
+    ):
+        initial_ite_regrow = coalesce(initial_ite_regrow, initial_ite_pruning)
+        regrowth_frequency = coalesce(regrowth_frequency, pruning_frequency)
+        super().__init__(
+            initial_sparsity=initial_sparsity,
+            final_sparsity=final_sparsity,
+            initial_ite_pruning=initial_ite_pruning,
+            pruning_frequency=pruning_frequency,
+            tot_num_pruning_ite=tot_num_pruning_ite,
+        )
+        self.p_regen = p_regen
+        self.initial_ite_regrow = initial_ite_regrow
+        self.regrowth_frequency = regrowth_frequency
+        self.step_counter = 0
+        self.fase_1_pruning_rate = 0.0
+        
+    def can_regrow(self):
+        return self.step_counter >= self.initial_ite_regrow and (not self.has_ended_regrow()) and ((self.step_counter + self.initial_ite_regrow) % self.regrowth_frequency == 0)
+
+    def has_ended_regrow(self):
+        return self.step_counter > (self.tot_num_pruning_ite * self.regrowth_frequency + self.initial_ite_regrow)
     
+    def is_waiting_for_regrowth(self):
+        if (self.step_counter - self.initial_ite_regrow) % self.regrowth_frequency == 0:
+            return True
+        
+        current_regrow_phase = max(-1, (self.step_counter - self.initial_ite_regrow) // self.regrowth_frequency )
+        current_prune_phase = max(-1, (self.step_counter - self.initial_ite_pruning) // self.pruning_frequency)
+        next_regrow_ite = (current_regrow_phase + 1) * self.regrowth_frequency + self.initial_ite_regrow if current_regrow_phase > 0 else self.initial_ite_regrow
+
+        return current_prune_phase > 0 and (next_regrow_ite - self.initial_ite_pruning) // self.pruning_frequency == current_prune_phase
+
+    def step(self):
+        prev_sparsity = self.current_sparsity
+        waits_regrowth = self.is_waiting_for_regrowth()
+        super().step()
+        if self.current_sparsity > prev_sparsity:
+            if waits_regrowth:
+                target_density_before_regrowth = (1 - self.current_sparsity) * (1 - self.current_pruning_rate) * (1 - self.p_regen)
+                self.fase_1_pruning_rate = self.current_pruning_rate
+                self.current_pruning_rate = self._get_pruning_rate(prev_sparsity, 1 - target_density_before_regrowth)
+            self.regrowth_rate = None # must regrow with int numbers
+
+
     
 class PruningRateCubicSchedulingWithRegrowth(PruningRateCubicScheduling):
     def __init__(
