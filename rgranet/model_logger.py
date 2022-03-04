@@ -1,4 +1,5 @@
 from enum import Enum
+from ssl import SSLError
 from typing import Collection
 from functools import total_ordering
 import requests
@@ -65,7 +66,10 @@ class ModelLogger():
 
 
         send_url = f"https://api.telegram.org/bot{self.token}/sendMessage?chat_id={self.chatid}&text={message}"
-        requests.get(send_url, verify=False)
+        try:
+            requests.get(send_url, verify=False)
+        except SSLError:
+            print("SSL Error. Could not send message. Execution continues")
 
     def _get_message_logs_end_epoch(self, milestone:Milestone):
         message = MILESTONE_PRINT[milestone] + " | "
