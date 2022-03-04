@@ -117,7 +117,8 @@ class PruningRateCubicSchedulingWithFixedRegrowth(PruningRateCubicScheduling):
         tot_num_pruning_ite:int,
         initial_ite_pruning:int=0,
         pruning_frequency:int=1,
-        p_regen:float=1.0,
+        p_regen:float=.5,
+        p_regen_min:float=.005,
         initial_ite_regrow:int=None,
         regrowth_frequency:int=None,
     ):
@@ -130,7 +131,14 @@ class PruningRateCubicSchedulingWithFixedRegrowth(PruningRateCubicScheduling):
             pruning_frequency=pruning_frequency,
             tot_num_pruning_ite=tot_num_pruning_ite,
         )
-        self.p_regen = p_regen
+        self.secondary_scheduler = PruningRateCosineScheduling(
+            initial_pruning_rate=p_regen,
+            tot_num_pruning_ite=tot_num_pruning_ite,
+            initial_ite_pruning=initial_ite_pruning,
+            pruning_frequency=regrowth_frequency,
+            pruning_rate_min=p_regen_min,
+        )
+        # self.p_regen = p_regen
         self.initial_ite_regrow = initial_ite_regrow
         self.regrowth_frequency = regrowth_frequency
         self.step_counter = 0
@@ -157,9 +165,10 @@ class PruningRateCubicSchedulingWithFixedRegrowth(PruningRateCubicScheduling):
         waits_regrowth = self.is_waiting_for_regrowth()
         self.set_can_regrow()
         super().step()
+        self.secondary_scheduler.step()
         if self.current_sparsity > prev_sparsity:
             if waits_regrowth:
-                target_density_before_regrowth = (1 - self.current_sparsity) * (1 - self.current_pruning_rate) * (1 - self.p_regen)
+                target_density_before_regrowth = (1 - self.current_sparsity) * (1 - self.current_pruning_rate) * (1 - self.secondary_scheduler.current_pruning_rate)
                 self.fase_1_pruning_rate = self.current_pruning_rate
                 self.current_pruning_rate = self._get_pruning_rate(prev_sparsity, 1 - target_density_before_regrowth)
             self.regrowth_rate = None # must regrow with int numbers
