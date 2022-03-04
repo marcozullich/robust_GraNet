@@ -121,7 +121,8 @@ def main():
         final_model_path=config["train"]["final_model_save_path"],
         epoch_start=epoch_start,
         ite_start=ite_start,
-        amp_args=config["train"]["amp_hyperparameters"]
+        amp_args=config["train"]["amp_hyperparameters"],
+        clip_grad_norm=config["train"]["clip_grad_norm"],
     )
 
     net.evaluate(

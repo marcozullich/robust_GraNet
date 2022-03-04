@@ -29,8 +29,8 @@ class _PruningRateScheduling:
         for attr, value in state_dict.items():
             setattr(self, attr, value)
     
-    def can_prune(self):
-        return self.step_counter >= self.initial_ite_pruning and (not self.has_ended_prune()) and ((self.step_counter + self.initial_ite_pruning) % self.pruning_frequency == 0)
+    def set_can_prune(self):
+        self.can_prune = self.step_counter >= self.initial_ite_pruning and (not self.has_ended_prune()) and ((self.step_counter + self.initial_ite_pruning) % self.pruning_frequency == 0)
     
     def has_ended_prune(self):
         return self.step_counter > (self.tot_num_pruning_ite * self.pruning_frequency + self.initial_ite_pruning)
@@ -48,7 +48,8 @@ class PruningRateCosineScheduling(_PruningRateScheduling):
         self.step_counter = 0
     
     def step(self):
-        if self.can_prune():
+        self.set_can_prune()
+        if self.can_prune:
             self.current_pruning_rate = self.pruning_rate_min + .5 * (self.current_pruning_rate - self.pruning_rate_min) * (1 + math.cos(math.pi * (self.step_counter // self.pruning_frequency) / self.tot_num_pruning_ite))
         super().step()
     
@@ -68,7 +69,8 @@ class PruningRateLinearScheduling(_PruningRateScheduling):
         self.update_step = (self.final_pruning_rate - self.initial_pruning_rate) / self.tot_num_pruning_ite
     
     def step(self):
-        if self.can_prune():
+        self.set_can_prune()
+        if self.can_prune:
             self.current_pruning_rate -= self.update_step
 
 class PruningRateCubicScheduling(_PruningRateScheduling):
@@ -91,7 +93,8 @@ class PruningRateCubicScheduling(_PruningRateScheduling):
         return 1 - ((1 - new_sparsity) / (1 - current_sparsity))
 
     def step(self):
-        if self.can_prune():
+        self.set_can_prune()
+        if self.can_prune:
             new_sparsity = self.final_sparsity - self.delta_sparsity * ((1 - (self.step_counter - self.initial_ite_pruning) / self.update_denominator) ** 3)
             self.current_pruning_rate = self._get_pruning_rate(self.current_sparsity, new_sparsity)
             self.current_sparsity = new_sparsity
@@ -133,8 +136,8 @@ class PruningRateCubicSchedulingWithFixedRegrowth(PruningRateCubicScheduling):
         self.step_counter = 0
         self.fase_1_pruning_rate = 0.0
         
-    def can_regrow(self):
-        return self.step_counter >= self.initial_ite_regrow and (not self.has_ended_regrow()) and ((self.step_counter + self.initial_ite_regrow) % self.regrowth_frequency == 0)
+    def set_can_regrow(self):
+        self.can_regrow = self.step_counter >= self.initial_ite_regrow and (not self.has_ended_regrow()) and ((self.step_counter + self.initial_ite_regrow) % self.regrowth_frequency == 0)
 
     def has_ended_regrow(self):
         return self.step_counter > (self.tot_num_pruning_ite * self.regrowth_frequency + self.initial_ite_regrow)
@@ -152,6 +155,7 @@ class PruningRateCubicSchedulingWithFixedRegrowth(PruningRateCubicScheduling):
     def step(self):
         prev_sparsity = self.current_sparsity
         waits_regrowth = self.is_waiting_for_regrowth()
+        self.set_can_regrow()
         super().step()
         if self.current_sparsity > prev_sparsity:
             if waits_regrowth:
@@ -186,8 +190,8 @@ class PruningRateCubicSchedulingWithRegrowth(PruningRateCubicScheduling):
         
         self.has_pruned_and_not_regrown = False
     
-    def can_regrow(self):
-        return self.step_counter >= self.initial_ite_regrow and (not self.has_ended_regrow()) and ((self.step_counter + self.initial_ite_regrow) % self.regrowth_frequency == 0)
+    def set_can_regrow(self):
+        self.can_regrow = self.step_counter >= self.initial_ite_regrow and (not self.has_ended_regrow()) and ((self.step_counter + self.initial_ite_regrow) % self.regrowth_frequency == 0)
 
     def has_ended_regrow(self):
         return self.step_counter > (self.tot_num_pruning_ite * self.regrowth_frequency + self.initial_ite_regrow)

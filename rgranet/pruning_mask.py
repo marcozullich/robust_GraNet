@@ -91,7 +91,7 @@ class _Mask():
         self.p = self.scheduling.current_pruning_rate
     
     def regrow(self, named_gradients=None):
-        if self.scheduling.can_regrow() and self.scheduling.regrowth_rate > 0.0:
+        if self.scheduling.can_regrow and self.scheduling.regrowth_rate > 0.0:
             regen_mask = gradient_based_neuroregeneration(self.net, self.params_to_prune, self.scheduling.regrowth_rate, is_global=self.is_global, named_gradients=named_gradients)
             self.regenerate(regen_mask)
             # print(f"\tsparsity after regrowth {self.get_mask_sparsity():.6f}")
@@ -197,15 +197,16 @@ class RGraNetMask(LMMask):
     
     def prune(self):
         num_params_before = self.get_nonzero_weights_count()
-        num_params_after_fase_1_pruning = num_params_before * (1 - self.p)
+        num_params_after_fase_1_pruning = int(num_params_before * (1 - self.scheduling.fase_1_pruning_rate))
         super().prune()
         num_params_after_fase_2_pruning = self.get_nonzero_weights_count()
-        self.num_params_to_regrow = num_params_after_fase_2_pruning - num_params_after_fase_1_pruning
+        self.num_params_to_regrow = num_params_after_fase_1_pruning - num_params_after_fase_2_pruning
     
     def regrow(self, named_gradients=None):
-        if self.scheduling.can_regrow() and hasattr(self, "num_mask_to_regrow") and self.num_mask_to_regrow > 0:
+        if self.scheduling.can_regrow and hasattr(self, "num_params_to_regrow") and self.num_params_to_regrow > 0:
             regen_mask = gradient_based_neuroregeneration(self.net, self.params_to_prune, regrowth_rate=None, num_to_regrow=self.num_params_to_regrow, is_global=self.is_global, named_gradients=named_gradients)
             self.regenerate(regen_mask)
+            print("After regrow:", self.get_mask_sparsity())
         
             
             

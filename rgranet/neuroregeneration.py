@@ -43,14 +43,12 @@ def gradient_based_neuroregeneration(
 ) -> Odict:
     regrowth_rate, num_to_regrow = validate_parse_regrowth_rate_and_nums(regrowth_rate, num_to_regrow, is_global, len(params_to_prune))
 
-    if num_to_regrow is not None:
-        assert all(n>=0 for n in num_to_regrow.values()), f"All numbers to regrow must be positive. Found {[(k, n) for k, n in num_to_regrow.items() if n<0]}"
 
     named_gradients = validate_parse_gradients_and_net(named_gradients, net, params_to_prune)
     mask = coalesce(mask, net.mask)
     device = coalesce(device, mask.device)
     if is_global:
-        regenerated_params = _neuroregenerate_params(net.mask, regrowth_rate, *named_gradients, device=device, num_to_regrow=num_to_regrow)
+        regenerated_params = _neuroregenerate_params(mask, regrowth_rate, *named_gradients, device=device, num_to_regrow=num_to_regrow)
     else:
         regenerated_params = {}
         for name, grad in named_gradients:
@@ -71,6 +69,8 @@ def validate_parse_regrowth_rate_and_nums(regrowth_rate:int, num_to_regrow:Union
             else:
                 if len(num_to_regrow) != num_params_to_prune:
                     raise ValueError("If num_to_regrow is a list, its size must be equal to the number of blocks to prune")
+                if not(all(n>=0 for n in num_to_regrow.values())):
+                    raise ValueError(f"All numbers to regrow must be positive. Found {[(k, n) for k, n in num_to_regrow.items() if n<0]}")
 
     
     return regrowth_rate, num_to_regrow
