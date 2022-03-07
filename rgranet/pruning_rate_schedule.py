@@ -134,7 +134,7 @@ class PruningRateCubicSchedulingWithFixedRegrowth(PruningRateCubicScheduling):
         self.secondary_scheduler = PruningRateCosineScheduling(
             initial_pruning_rate=p_regen,
             tot_num_pruning_ite=tot_num_pruning_ite,
-            initial_ite_pruning=initial_ite_pruning,
+            initial_ite_pruning=initial_ite_regrow,
             pruning_frequency=regrowth_frequency,
             pruning_rate_min=p_regen_min,
         )
@@ -156,7 +156,7 @@ class PruningRateCubicSchedulingWithFixedRegrowth(PruningRateCubicScheduling):
         
         current_regrow_phase = max(-1, (self.step_counter - self.initial_ite_regrow) // self.regrowth_frequency )
         current_prune_phase = max(-1, (self.step_counter - self.initial_ite_pruning) // self.pruning_frequency)
-        next_regrow_ite = (current_regrow_phase + 1) * self.regrowth_frequency + self.initial_ite_regrow if current_regrow_phase > 0 else self.initial_ite_regrow
+        next_regrow_ite = (current_regrow_phase + 1) * self.regrowth_frequency + self.initial_ite_regrow if current_regrow_phase >= 0 else self.initial_ite_regrow
 
         return current_prune_phase > 0 and (next_regrow_ite - self.initial_ite_pruning) // self.pruning_frequency == current_prune_phase
 

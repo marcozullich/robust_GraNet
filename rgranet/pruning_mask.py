@@ -199,11 +199,14 @@ class RGraNetMask(LMMask):
         num_params_before = self.get_nonzero_weights_count()
         num_params_after_fase_1_pruning = int(num_params_before * (1 - self.scheduling.fase_1_pruning_rate))
         super().prune()
-        num_params_after_fase_2_pruning = self.get_nonzero_weights_count()
-        self.num_params_to_regrow = num_params_after_fase_1_pruning - num_params_after_fase_2_pruning
+        if self.p > 0.0:
+            num_params_after_fase_2_pruning = self.get_nonzero_weights_count()
+            print(f"## {self.scheduling.step_counter} - Pruned with rate {self.p:.6f} (n. params {num_params_before - num_params_after_fase_2_pruning})")
+            self.num_params_to_regrow = num_params_after_fase_1_pruning - num_params_after_fase_2_pruning
     
     def regrow(self, named_gradients=None):
         if self.scheduling.can_regrow and hasattr(self, "num_params_to_regrow") and self.num_params_to_regrow > 0:
+            print(f"## {self.scheduling.step_counter} - Regrowing {self.num_params_to_regrow} params")
             regen_mask = gradient_based_neuroregeneration(self.net, self.params_to_prune, regrowth_rate=None, num_to_regrow=self.num_params_to_regrow, is_global=self.is_global, named_gradients=named_gradients)
             self.regenerate(regen_mask)
             print("After regrow:", self.get_mask_sparsity())
