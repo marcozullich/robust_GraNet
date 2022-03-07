@@ -98,9 +98,9 @@ class Model(torch.nn.Module):
     
     def _accumulate_grad(self):
         if self.gradients_accumulator is None:
-            self.gradients_accumulator = Odict({n: p.grad.detach().clone() for n, p in self.named_parameters()})
+            self.gradients_accumulator = Odict({n: p.grad.detach().clone() for n, p in self.filtered_named_parameters(self.mask.effective_params_to_prune)})
         else:
-            for n, p in self.named_parameters():
+            for n, p in self.filtered_named_parameters(self.mask.effective_params_to_prune):
                 self.gradients_accumulator[n] += p.grad.detach().clone()
 
     def _accumulate_grad_if_required(self):

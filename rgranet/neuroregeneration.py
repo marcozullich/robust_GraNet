@@ -80,6 +80,8 @@ def validate_parse_gradients_and_net(gradients:Collection, net:torch.nn.Module, 
         raise ValueError(f"Either gradients or net must be specified")
     if gradients is None:
         return ((n, p.grad) for n, p in net.filtered_named_parameters(params_to_prune))
+    if isinstance(gradients, dict):
+        gradients = ((n, g) for n, g in gradients.items())
     return gradients
     
 
