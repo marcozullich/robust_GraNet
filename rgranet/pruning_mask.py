@@ -295,7 +295,7 @@ class GraNetMask(LMMask):
             
 
     def allow_death_and_regrowth_phase(self):
-        return self.r > 0.0 and self.p > 0.0 and not self.scheduling.has_ended()
+        return self.r > 0.0 and self.p > 0.0 and not self.scheduling.has_ended_prune()
 
     def step(self):
         self.scheduling.step()
