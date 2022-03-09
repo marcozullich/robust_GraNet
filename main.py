@@ -2,6 +2,8 @@ import torch
 import argparse
 import math
 import os
+from pprint import pprint as pretty_print
+
 
 import parse_config
 import main_cyclical_lr as cyc
@@ -47,6 +49,8 @@ def main():
     args = parser.parse_args()
 
     config = parse_config.parse_config(args.config_path)
+
+    pretty_print(config)
     
     print(f"save file {config['train']['final_model_save_path']}")
 
