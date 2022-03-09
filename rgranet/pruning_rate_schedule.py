@@ -165,11 +165,11 @@ class PruningRateCubicSchedulingWithFixedRegrowth(PruningRateCubicScheduling):
         waits_regrowth = self.is_waiting_for_regrowth()
         self.set_can_regrow()
         super().step()
+        self.fase_1_pruning_rate = self.current_pruning_rate
         self.secondary_scheduler.step()
         if self.current_sparsity > prev_sparsity:
             if waits_regrowth:
                 target_density_before_regrowth = (1 - self.current_sparsity) * (1 - self.current_pruning_rate) * (1 - self.secondary_scheduler.current_pruning_rate)
-                self.fase_1_pruning_rate = self.current_pruning_rate
                 self.current_pruning_rate = self._get_pruning_rate(prev_sparsity, 1 - target_density_before_regrowth)
             self.regrowth_rate = None # must regrow with int numbers
 

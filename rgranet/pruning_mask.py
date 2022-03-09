@@ -174,6 +174,7 @@ class RGraNetMask(LMMask):
         regrowth_delay:int=0,
         accumulate_gradients_before_regrowth:bool=False,
         death_and_regrowth_rate:int=1,
+        death_and_regrowth_global:bool=True,
     ):
         super().__init__(
             init_pruning_rate=init_pruning_rate,
@@ -194,22 +195,41 @@ class RGraNetMask(LMMask):
             is_global=True,
         )
         self.accumulate_gradients_before_regrowth = accumulate_gradients_before_regrowth
+        self.death_and_regrowth_global = death_and_regrowth_global
     
     def prune(self):
-        num_params_before = self.get_nonzero_weights_count()
-        num_params_after_fase_1_pruning = int(num_params_before * (1 - self.scheduling.fase_1_pruning_rate))
-        super().prune()
-        if self.p > 0.0:
-            num_params_after_fase_2_pruning = self.get_nonzero_weights_count()
-            print(f"## {self.scheduling.step_counter} - Pruned with rate {self.p:.6f} (n. params {num_params_before - num_params_after_fase_2_pruning})")
-            self.num_params_to_regrow = num_params_after_fase_1_pruning - num_params_after_fase_2_pruning
+        if self.death_and_regrowth_global:
+            num_params_before = self.get_nonzero_weights_count()
+            num_params_after_fase_1_pruning = int(num_params_before * (1 - self.scheduling.fase_1_pruning_rate))
+            super().prune()
+            if self.p > 0.0:
+                num_params_after_fase_2_pruning = self.get_nonzero_weights_count()
+                print(f"## {self.scheduling.step_counter} - Pruned with rate {self.p:.6f} (n. params {num_params_before - num_params_after_fase_2_pruning})")
+                self.num_params_to_regrow = num_params_after_fase_1_pruning - num_params_after_fase_2_pruning
+        else:
+            super().prune(pruning_rate=self.scheduling.fase_1_pruning_rate, is_global=True)
+            if self.p > 0.0:
+                num_zeros_after_fase_1 = self.get_nonzero_weights_count_per_module()
+                super().prune(pruning_rate=self.scheduling.secondary_scheduler.current_pruning_rate, is_global=False)
+                num_zeros_after_fase_2 = self.get_nonzero_weights_count_per_module()
+                self.num_params_to_regrow = {name: num_zeros_after_fase_1[name] - num_zeros_after_fase_2[name] for name in num_zeros_after_fase_1.keys()}
+
+
     
     def regrow(self, named_gradients=None):
-        if self.scheduling.can_regrow and hasattr(self, "num_params_to_regrow") and self.num_params_to_regrow > 0:
-            print(f"## {self.scheduling.step_counter} - Regrowing {self.num_params_to_regrow} params")
-            regen_mask = gradient_based_neuroregeneration(self.net, self.params_to_prune, regrowth_rate=None, num_to_regrow=self.num_params_to_regrow, is_global=self.is_global, named_gradients=named_gradients)
-            self.regenerate(regen_mask)
-            print("After regrow:", self.get_mask_sparsity())
+        if hasattr(self, "num_params_to_regrow"):
+            if isinstance(self.num_params_to_regrow, int):
+                regrow_num_positive = True
+            elif isinstance(self.num_params_to_regrow, dict):
+                regrow_num_positive = any(num > 0 for num in self.num_params_to_regrow.values())
+            else:
+                raise ValueError(f"Regrowth num params must be int or dict, got {type(self.num_params_to_regrow)}")
+            if self.scheduling.can_regrow and regrow_num_positive:
+                if isinstance(self.num_params_to_regrow, int): 
+                    print(f"## {self.scheduling.step_counter} - Regrowing {self.num_params_to_regrow} params")
+                regen_mask = gradient_based_neuroregeneration(self.net, self.effective_params_to_prune, regrowth_rate=None, num_to_regrow=self.num_params_to_regrow, is_global=self.death_and_regrowth_global, named_gradients=named_gradients)
+                self.regenerate(regen_mask)
+                print("After regrow:", self.get_mask_sparsity())
         
             
             
