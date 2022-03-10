@@ -264,7 +264,7 @@ class GradualPruningMask(LMMask):
             is_global=True,
         )
     
-    def regrow(self):
+    def regrow(self, *args, **kwargs):
         pass
 
 class GraNetMask(LMMask):

@@ -243,7 +243,7 @@ class Model(torch.nn.Module):
             
             self._accumulate_grad_if_required()
 
-            if self.mask is not None and isinstance(self.mask, (RGraNetMask, GradualPruningMask)) and update_mask_this_ite:
+            if self.mask is not None and isinstance(self.mask, (RGraNetMask)) and update_mask_this_ite:
                 # RGraNet: regrow after gradient computation, before weights update
                 self.mask.regrow(named_gradients=self.gradients_accumulator)
 
