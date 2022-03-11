@@ -25,8 +25,9 @@ def main(log_file_pattern, logs_folder, string_accuracy, accuracy_marker, field_
     for log_file in log_files:
         with open(log_file, "r") as f:
             row = match_row_file(string_accuracy, f)
-            accuracy = get_accuracy_from_row(row, accuracy_marker, field_separator)
-            accuracies.append(accuracy)
+            if row is not None:
+                accuracy = get_accuracy_from_row(row, accuracy_marker, field_separator)
+                accuracies.append(float(accuracy))
     
     return accuracies
 
@@ -37,9 +38,16 @@ if __name__ == "__main__":
     parser.add_argument("--string_accuracy", type=str, default="Test |  Acc:", help="String to search for accuracy")
     parser.add_argument("--accuracy_marker", type=str, default="Acc:", help="Field marking accuracy")
     parser.add_argument("--field_separator", type=str, default=" ", help="Field separator")
+    parser.add_argument("--debug", action="store_true", help="Print debug information")
     args = parser.parse_args()
 
-    log_file_pattern = r"{}".format(args.log_file_pattern)
+    if args.debug:
+        args.logs_folder = "stat_utils"
+        args.log_file_pattern = ".+\.out"
+        print("Arguments:")
+        print(args)
+
+    log_file_pattern = args.log_file_pattern
     logs_folder = os.path.expanduser(os.path.expandvars(args.logs_folder))
 
     accuracies = main(log_file_pattern, logs_folder, args.string_accuracy, args.accuracy_marker, args.field_separator)
