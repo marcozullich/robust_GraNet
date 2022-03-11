@@ -230,6 +230,8 @@ class RGraNetMask(LMMask):
                 regen_mask = gradient_based_neuroregeneration(self.net, self.effective_params_to_prune, regrowth_rate=None, num_to_regrow=self.num_params_to_regrow, is_global=self.death_and_regrowth_global, named_gradients=named_gradients)
                 self.regenerate(regen_mask)
                 print("After regrow:", self.get_mask_sparsity())
+        self.need_gradient_reset = True
+
         
             
             

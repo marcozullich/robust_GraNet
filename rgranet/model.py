@@ -246,6 +246,9 @@ class Model(torch.nn.Module):
             if self.mask is not None and isinstance(self.mask, (RGraNetMask)) and update_mask_this_ite:
                 # RGraNet: regrow after gradient computation, before weights update
                 self.mask.regrow(named_gradients=self.gradients_accumulator)
+                if self.mask.need_gradient_reset:
+                    self._drop_accumulated_grad()
+                    self.mask.need_gradient_reset = False
 
 
             if step_optimizer_this_ite:
