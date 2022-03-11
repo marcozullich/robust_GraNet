@@ -2,6 +2,7 @@ import os
 import argparse
 import re
 import io
+import statistics
 
 def match_row_file(pattern, file_stream:io.StringIO):
     file_content = file_stream.readlines()
@@ -52,6 +53,7 @@ if __name__ == "__main__":
 
     accuracies = main(log_file_pattern, logs_folder, args.string_accuracy, args.accuracy_marker, args.field_separator)
     print(accuracies)
+    print(f"Mean: {statistics.mean(accuracies)}")
 
     
     
