@@ -1,11 +1,16 @@
 from typing import Collection, List, Union
 from collections import OrderedDict as Odict
 import torch
+from enum import Enum
 
 from . import pruning_rate_schedule as schedule
 from .utils import coalesce
 from .neuroregeneration import gradient_based_neuroregeneration
 
+class GradientsAccumulationMethod(Enum):
+    NEVER = 0
+    ALWAYS = 1
+    BETWEEN_PRUNE_AND_REGROWTH = 2
 
 
 class _Mask():
@@ -172,7 +177,8 @@ class RGraNetMask(LMMask):
         pruning_frequency:int=20,
         # regrowth_to_prune_ratio:float=1.0,
         regrowth_delay:int=0,
-        accumulate_gradients_before_regrowth:bool=False,
+        # accumulate_gradients_before_regrowth:bool=False,
+        gradients_accumulation_method = GradientsAccumulationMethod.NEVER,
         death_and_regrowth_rate:int=1,
         death_and_regrowth_global:bool=True,
     ):
@@ -194,7 +200,8 @@ class RGraNetMask(LMMask):
             },
             is_global=True,
         )
-        self.accumulate_gradients_before_regrowth = accumulate_gradients_before_regrowth
+        # self.accumulate_gradients_before_regrowth = accumulate_gradients_before_regrowth
+        self.gradients_accumulation_method = gradients_accumulation_method
         self.death_and_regrowth_global = death_and_regrowth_global
         self.need_gradient_reset = False
     
@@ -231,7 +238,8 @@ class RGraNetMask(LMMask):
                 regen_mask = gradient_based_neuroregeneration(self.net, self.effective_params_to_prune, regrowth_rate=None, num_to_regrow=self.num_params_to_regrow, is_global=self.death_and_regrowth_global, named_gradients=named_gradients)
                 self.regenerate(regen_mask)
                 print("After regrow:", self.get_mask_sparsity())
-                self.need_gradient_reset = True
+                if self.gradients_accumulation_method != GradientsAccumulationMethod.ALWAYS:
+                    self.need_gradient_reset = True
 
         
             

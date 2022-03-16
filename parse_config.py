@@ -8,6 +8,7 @@ from rgranet import architectures
 from rgranet import data
 from rgranet import lr_schedulers
 from rgranet import pruning_mask as msk
+from rgranet.pruning_mask import GradientsAccumulationMethod
 from rgranet import pruning_rate_schedule as prs
 from rgranet import model
 from rgranet.utils import yaml_load, coalesce, is_int
@@ -87,6 +88,27 @@ def parse_mask(config):
     }
     config["train"]["pruning"]["mask_class"] = parser[config["train"]["pruning"]["mask_class"]]
 
+def parse_grad_accumul(config):
+    if config["train"]["pruning"]["hyperparameters"].get("accumulate_gradients_before_regrowth") is not None and config["train"]["pruning"]["hyperparameters"].get("gradients_accumulation_method") is not None:
+        raise ValueError("Cannot specify, in configuration, both accumulate_gradients_before_regrowth and gradients_accumulation_method")
+
+    if config["train"]["pruning"]["hyperparameters"].get("accumulate_gradients_before_regrowth") is not None:
+        grad_before_regrowth = config["train"]["pruning"]["hyperparameters"].pop("accumulate_gradients_before_regrowth")
+        if grad_before_regrowth:
+            config["train"]["pruning"]["hyperparameters"]["gradients_accumulation_method"] = GradientsAccumulationMethod.BETWEEN_PRUNE_AND_REGROWTH
+        else:
+            config["train"]["pruning"]["hyperparameters"]["gradients_accumulation_method"] = GradientsAccumulationMethod.NEVER
+
+    elif config["train"]["pruning"]["hyperparameters"].get("gradients_accumulation_method") is not None:
+        grad_accum_method = config["train"]["pruning"]["hyperparameters"]["gradients_accumulation_method"].lower()
+        parser = {
+            "never": GradientsAccumulationMethod.NEVER,
+            "always": GradientsAccumulationMethod.ALWAYS,
+            "between_prune_and_regrowth": GradientsAccumulationMethod.BETWEEN_PRUNE_AND_REGROWTH,
+        }
+        config["train"]["pruning"]["hyperparameters"]["gradients_accumulation_method"] = parser[grad_accum_method]
+
+
 def parse_pr_scheduler(config):
     if config["train"]["pruning"].get("scheduler") is not None:
         parser = {
@@ -110,6 +132,7 @@ def parse_config(config_path):
     parse_lr_scheduler(config)
     parse_milestone(config)
     parse_mask(config)
+    parse_grad_accumul(config)
     parse_pr_scheduler(config)
     config["data"]["hyperparameters"]["root"] = parse_path(config["data"]["hyperparameters"]["root"])
     config["util"]["telegram_config_name"] = parse_path(config["util"]["telegram_config_name"]) if config["util"]["telegram_config_name"] is not None else None

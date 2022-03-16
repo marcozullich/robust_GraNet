@@ -6,7 +6,7 @@ import os
 from apex import amp
 from collections import OrderedDict as Odict
 
-from .pruning_mask import _Mask, GraNetMask, GradualPruningMask, LMMask, NoMask, RGraNetMask
+from .pruning_mask import _Mask, GraNetMask, GradientsAccumulationMethod, GradualPruningMask, LMMask, NoMask, RGraNetMask
 from .pytorch_utils import AverageMeter, accuracy as acc_fn
 from .model_logger import ModelLogger, Verbosity, Milestone
 from .pytorch_utils import set_dtype_
@@ -104,11 +104,23 @@ class Model(torch.nn.Module):
                 self.gradients_accumulator[n] += p.grad.detach().clone()
 
     def _accumulate_grad_if_required(self):
-        if hasattr(self.mask.scheduling, "is_waiting_for_regrowth") and self.mask.scheduling.is_waiting_for_regrowth() and hasattr(self.mask, "accumulate_gradients_before_regrowth") and self.mask.accumulate_gradients_before_regrowth:
+        if hasattr(self.mask, "gradients_accumulation_method") and self.mask.gradients_accumulation_method != GradientsAccumulationMethod.NEVER:
+            if self.mask.gradients_accumulation_method == GradientsAccumulationMethod.ALWAYS:
+                self._accumulate_grad()
+            elif self.mask.gradients_accumulation_method == GradientsAccumulationMethod.BETWEEN_PRUNE_AND_REGROWTH:
+                if hasattr(self.mask.scheduling, "is_waiting_for_regrowth") and self.mask.scheduling.is_waiting_for_regrowth():
                     self._accumulate_grad()
+            else:
+                raise ValueError(f"Unknown gradients accumulation method {self.mask.gradients_accumulation_method}")
+        # if hasattr(self.mask.scheduling, "is_waiting_for_regrowth") and self.mask.scheduling.is_waiting_for_regrowth() and hasattr(self.mask, "accumulate_gradients_before_regrowth") and self.mask.accumulate_gradients_before_regrowth:
         
     def _drop_accumulated_grad(self):
         self.gradients_accumulator = None
+
+    def _drop_accumulated_grad_if_required(self):
+        if self.mask.need_gradient_reset:
+            self._drop_accumulated_grad()
+            self.mask.need_gradient_reset = False
 
     def _clip_grad_norm(self, norm:float):
         torch.nn.utils.clip_grad_norm_(self.net.parameters(), 1)
@@ -246,9 +258,7 @@ class Model(torch.nn.Module):
             if self.mask is not None and isinstance(self.mask, (RGraNetMask)) and update_mask_this_ite:
                 # RGraNet: regrow after gradient computation, before weights update
                 self.mask.regrow(named_gradients=self.gradients_accumulator)
-                if self.mask.need_gradient_reset:
-                    self._drop_accumulated_grad()
-                    self.mask.need_gradient_reset = False
+                self._drop_accumulated_grad_if_required()
 
 
             if step_optimizer_this_ite:
