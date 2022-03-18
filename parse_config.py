@@ -131,6 +131,13 @@ def parse_pr_scheduler(config):
         }
         config["train"]["pruning"]["scheduler"]["class"]= parser[config["train"]["pruning"]["scheduler"]["class"]]
 
+def config_savefile(config):
+    if config.get("num_run") is None:
+        config["num_run"] = int(random.random()*1e6)
+
+    filename, ext = os.path.splitext(config["train"]["final_model_save_path"])
+    config["train"]["final_model_save_path"] = f"{filename}_{config['num_run']}{ext}"
+
 def parse_config(config_path):
     config = yaml_load(config_path)
     
@@ -145,14 +152,10 @@ def parse_config(config_path):
     parse_clip_grad_norm(config)
     parse_grad_accumul(config)
     parse_pr_scheduler(config)
+    config_savefile(config)
     config["data"]["hyperparameters"]["root"] = parse_path(config["data"]["hyperparameters"]["root"])
     config["util"]["telegram_config_name"] = parse_path(config["util"]["telegram_config_name"]) if config["util"]["telegram_config_name"] is not None else None
 
-    if config.get("num_run") is not None:
-        if config["num_run"].strip().startswith("$"):
-            if config["num_run"] == "" or (not is_int(config["num_run"])): # if env variable does not exist, generate random hash
-                config["num_run"] = int(random.random()*1e6)
-        filename, ext = os.path.splitext(config["train"]["final_model_save_path"])
-        config["train"]["final_model_save_path"] = f"{filename}_{config['num_run']}{ext}"
+        
 
     return config
