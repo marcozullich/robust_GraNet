@@ -88,6 +88,16 @@ def parse_mask(config):
     }
     config["train"]["pruning"]["mask_class"] = parser[config["train"]["pruning"]["mask_class"]]
 
+def parse_clip_grad_norm(config):
+    if config["train"].get("clip_grad_norm") is not None and config["train"].get("clip_grad_norm_before_epoch") is not None:
+        raise ValueError("clip_grad_norm and clip_grad_norm_before_epoch cannot be set at the same time")
+
+    if config["train"].get("clip_grad_norm"):
+        clip_grad_norm = config["train"].pop("clip_grad_norm")
+        config["train"]["clip"]["clip_grad_norm_before_epoch"] = config["train"]["epochs"] + config["train"]["burnout_epochs"] + 1 if clip_grad_norm else 0
+
+    
+
 def parse_grad_accumul(config):
     if config["train"]["pruning"]["hyperparameters"].get("accumulate_gradients_before_regrowth") is not None and config["train"]["pruning"]["hyperparameters"].get("gradients_accumulation_method") is not None:
         raise ValueError("Cannot specify, in configuration, both accumulate_gradients_before_regrowth and gradients_accumulation_method")
@@ -132,6 +142,7 @@ def parse_config(config_path):
     parse_lr_scheduler(config)
     parse_milestone(config)
     parse_mask(config)
+    parse_clip_grad_norm(config)
     parse_grad_accumul(config)
     parse_pr_scheduler(config)
     config["data"]["hyperparameters"]["root"] = parse_path(config["data"]["hyperparameters"]["root"])

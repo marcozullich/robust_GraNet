@@ -89,7 +89,7 @@ class _Mask():
         if pruning_rate > 0.0:
             self._update(is_global, pruning_rate=pruning_rate)
             self.apply()
-            # print(f"\tsparsity after pruning {self.get_mask_sparsity():.6f}")
+            print(f"\tsparsity after pruning {self.get_mask_sparsity():.6f}")
 
     def step(self):
         self.scheduling.step()

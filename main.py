@@ -9,6 +9,7 @@ import parse_config
 import main_cyclical_lr as cyc
 from rgranet.model import Model
 from rgranet.utils import coalesce, make_subdirectory
+from rgranet.pruning_mask import NoMask
 
 NUM_CLASSES = {
     "cifar10": 10,
@@ -77,12 +78,14 @@ def main():
     
     
 
-    if config["train"]["pruning"].get("scheduler") is None:
-        config["train"]["pruning"]["hyperparameters"]["tot_num_pruning_ite"] = tot_training_ite_without_burnout // config["train"]["pruning"]["hyperparameters"]["pruning_frequency"]
-    else:
-        if config["train"]["pruning"]["scheduler"]["hyperparameters"].get("tot_num_pruning_ite") is None:
-            config["train"]["pruning"]["scheduler"]["hyperparameters"]["tot_num_pruning_ite"] = tot_training_ite_without_burnout // config["train"]["pruning"]["scheduler"]["hyperparameters"]["pruning_frequency"]
-        # config["train"]["pruning"]["scheduler"]["pruning_frequency"] = config["train"]["pruning"]["hyperparameters"]["pruning_frequency"]
+    if config["train"]["pruning"]["mask_class"] != NoMask:
+        if config["train"]["pruning"].get("scheduler") is None:
+            if config["train"]["pruning"]["hyperparameters"].get("tot_num_pruning_ite") is None:
+                config["train"]["pruning"]["hyperparameters"]["tot_num_pruning_ite"] = tot_training_ite_without_burnout // config["train"]["pruning"]["hyperparameters"]["pruning_frequency"]
+        else:
+            if config["train"]["pruning"]["scheduler"]["hyperparameters"].get("tot_num_pruning_ite") is None:
+                config["train"]["pruning"]["scheduler"]["hyperparameters"]["tot_num_pruning_ite"] = tot_training_ite_without_burnout // config["train"]["pruning"]["scheduler"]["hyperparameters"]["pruning_frequency"]
+            # config["train"]["pruning"]["scheduler"]["pruning_frequency"] = config["train"]["pruning"]["hyperparameters"]["pruning_frequency"]
 
 
     mask_kwargs = {**config["train"]["pruning"]["hyperparameters"]}
@@ -126,7 +129,7 @@ def main():
         epoch_start=epoch_start,
         ite_start=ite_start,
         amp_args=config["train"]["amp_hyperparameters"],
-        clip_grad_norm=config["train"]["clip_grad_norm"],
+        clip_grad_norm_before_epoch=config["train"]["clip_grad_norm_before_epoch"],
     )
 
     net.evaluate(

@@ -134,7 +134,7 @@ class Model(torch.nn.Module):
         telegram_config_path=None,
         telegram_config_name=None,
         device:Union[torch.device,str]=None,
-        clip_grad_norm:bool=True,
+        clip_grad_norm_before_epoch:int=None,
         checkpoint_path:str=None,
         checkpoint_save_time:TrainingMilestone=TrainingMilestone.END_EPOCH,
         final_model_path:str=None,
@@ -145,6 +145,8 @@ class Model(torch.nn.Module):
         burnout_epochs:int=0,
         **kwargs
     ):
+        if clip_grad_norm_before_epoch is None:
+            clip_grad_norm_before_epoch = num_epochs + burnout_epochs + 1
         device = coalesce(device, use_gpu_if_available())
         
         self.to(device)
@@ -183,7 +185,7 @@ class Model(torch.nn.Module):
                 loss_meter=loss_meter,
                 device=device,
                 num_ite_optimizer_step=num_ite_optimizer_step, 
-                clip_grad_norm=clip_grad_norm, 
+                clip_grad_norm_before_epoch=clip_grad_norm_before_epoch,
                 checkpoint_path=checkpoint_save_path_iteration,
                 ite_start=ite_start,
                 burnout=epoch >= num_epochs
@@ -216,7 +218,7 @@ class Model(torch.nn.Module):
         loss_meter:AverageMeter,
         device,
         num_ite_optimizer_step:int=1,
-        clip_grad_norm:bool=True,
+        clip_grad_norm_before_epoch:int=0,
         checkpoint_path:str=None,
         ite_start:int=0,
         dtype:Union[str, torch.dtype]=torch.float32,
@@ -228,6 +230,10 @@ class Model(torch.nn.Module):
             if i < ite_start:
                 continue
             
+            # step_optimizer_this_ite = ((i + 1) % num_ite_optimizer_step == 0) and (not burnout)
+            # if step_optimizer_this_ite:
+            self.optimizer.zero_grad()
+
             data, labels = data.to(device), labels.to(device)
             
             update_mask_this_ite = (i + 1) % num_ite_optimizer_step == 0 and not burnout
@@ -242,14 +248,11 @@ class Model(torch.nn.Module):
 
             loss = self.loss_fn(preds, labels)
 
-            step_optimizer_this_ite = ((i + 1) % num_ite_optimizer_step == 0) and (not burnout)
-            if step_optimizer_this_ite:
-                self.optimizer.zero_grad()
 
             with amp.scale_loss(loss, self.optimizer) as scaled_loss:
                 scaled_loss.backward()
 
-            if clip_grad_norm:
+            if epoch < clip_grad_norm_before_epoch:
                 self._clip_grad_norm(1)
                 # torch.nn.utils.clip_grad_norm_(self.net.parameters(), 1)
             
@@ -261,12 +264,12 @@ class Model(torch.nn.Module):
                 self._drop_accumulated_grad_if_required()
 
 
-            if step_optimizer_this_ite:
-                if not isinstance(self.mask, NoMask):
-                    self.mask.suppress_grad()
-                self.optimizer.step()
-                if not isinstance(self.mask, NoMask):
-                    self.mask.apply()
+            # if step_optimizer_this_ite:
+            if not isinstance(self.mask, NoMask):
+                self.mask.suppress_grad()
+            self.optimizer.step()
+            if not isinstance(self.mask, NoMask):
+                self.mask.apply()
             
             if isinstance(self.mask, GraNetMask):
                 # GraNet: prune and regrow AFTER weights update
@@ -275,7 +278,7 @@ class Model(torch.nn.Module):
             
             accuracy_meter.update(acc_fn(preds, labels), n=data.shape[0])
             loss_meter.update(loss.item(), n=data.shape[0])
-            if self.scheduler_update_time == TrainingMilestone.END_ITERATION and step_optimizer_this_ite:
+            if self.scheduler_update_time == TrainingMilestone.END_ITERATION: # and step_optimizer_this_ite:
                 self.scheduler.step()
             
             
