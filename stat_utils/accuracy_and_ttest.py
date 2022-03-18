@@ -3,7 +3,11 @@ import scipy.stats as S
 import os
 import argparse
 
+from statistics import mean
+
 from get_accuracy import main as get_accuracy
+
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -30,6 +34,9 @@ if __name__ == "__main__":
     
     accuracies1 = np.array(get_accuracy(args.log_file_pattern1, args.logs_folder1, args.string_accuracy1, args.accuracy_marker1, args.field_separator1))
     accuracies2 = np.array(get_accuracy(args.log_file_pattern2, args.logs_folder2, args.string_accuracy2, args.accuracy_marker2, args.field_separator2))
+    
+    print("Accuracy for folder 1", mean(accuracies1))
+    print("Accuracy for folder 2", mean(accuracies2))
 
     ttest = S.ttest_ind(accuracies1, accuracies2, equal_var=False)
     print(f"T-test: {ttest}")
