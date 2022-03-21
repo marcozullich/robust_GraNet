@@ -35,7 +35,7 @@ def main(log_file_pattern, logs_folder, string_accuracy, accuracy_marker, field_
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--logs_folder", type=str, default=".", help="Folder containing the logs")
-    parser.add_argument("--log_file_pattern", type=str, default="*", help="Pattern for the log files")
+    parser.add_argument("--log_file_pattern", type=str, default=".+", help="Pattern for the log files")
     parser.add_argument("--string_accuracy", type=str, default="Test |  Acc:", help="String to search for accuracy")
     parser.add_argument("--accuracy_marker", type=str, default="Acc:", help="Field marking accuracy")
     parser.add_argument("--field_separator", type=str, default=" ", help="Field separator")

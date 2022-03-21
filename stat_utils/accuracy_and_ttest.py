@@ -12,7 +12,7 @@ from get_accuracy import main as get_accuracy
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--logs_folder1", type=str, required=True, help="Folder containing the logs")
-    parser.add_argument("--log_file_pattern1", type=str, default="*", help="Pattern for the log files")
+    parser.add_argument("--log_file_pattern1", type=str, default=".+", help="Pattern for the log files")
     parser.add_argument("--string_accuracy1", type=str, default="Test |  Acc:", help="String to search for accuracy")
     parser.add_argument("--accuracy_marker1", type=str, default="Acc:", help="Field marking accuracy")
     parser.add_argument("--field_separator1", type=str, default=" ", help="Field separator")
