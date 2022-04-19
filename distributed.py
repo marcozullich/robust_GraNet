@@ -12,13 +12,14 @@ from pathlib import Path
 
 import main
 from rgranet.utils import coalesce
-from rgranet.data import get_dataset
+
 
 class SLURM_Trainer():
     def __init__(self, config):
         self.config = config
     
     def __call__(self):
+        print(f"Starting distributed training with config: {self.config}")
         init_dist_node(self.config.distributed)
         main.set_up_training(config=self.config)
 
