@@ -6,6 +6,8 @@ import torch
 from torchvision import datasets as D
 from torchvision import transforms as T
 
+from .utils import dict_get_pop
+
 
 class SupportedDataset(Enum):
     CIFAR10 = 0
@@ -155,6 +157,10 @@ def get_dataloaders(
     '''
     assert pct_valid is None or (pct_valid >= 0.0 and pct_valid < 1.0), f"pct_valid must be between 0.0 and 1.0 (not included), but is {pct_valid}"
 
+    drop_last = dict_get_pop(kwargs, 'drop_last', distributed)
+    if distributed:
+        assert drop_last is False, f"Cannot use drop_last=False in case of distributed training. Please fix."
+
     if isinstance(transform_train, str):
         transform_train = TRANSFORM_TYPE_PARSER[transform_train.lower()]
     if isinstance(transform_test, str):
@@ -170,6 +176,8 @@ def get_dataloaders(
 
     if test_root is not None:
         testset = get_dataset(dataset_name, test_root, train=False, transform=transform_test, target_transform=target_transform)
+        if distributed:
+            assert (rem:=len(testset) % batch_test) == 0, f"For distributed training, the testset must be splittable in batches of size exactly {batch_test}. Current size is {len(testset)} with a remainder of {rem}. Please adjust the batch_test parameter"
     else:
         # covers the case of ImageFolder with no test set
         testset = None
@@ -177,6 +185,8 @@ def get_dataloaders(
     validset = None
     if dataset_name == SupportedDataset.IMAGEDATASET and val_root is not None:
         validset = get_dataset(dataset_name, val_root, train=False, transform=transform_test, target_transform=target_transform)
+        if distributed:
+            assert (rem:=len(validset) % batch_valid) == 0, f"For distributed training, the validation set must be splittable in batches of size exactly {batch_valid}. Current size is {len(validset)} with a remainder of {rem}. Please adjust the batch_valid parameter"
     
     # validset is None requested for the case of ImageFolder with no validation set but pct_valid > 0.0
     validate = (pct_valid is not None and pct_valid > 0.0 and validset is None)
@@ -187,11 +197,11 @@ def get_dataloaders(
     trainsampler = testsampler = validsampler = None
     if distributed:
         trainsampler = torch.utils.data.distributed.DistributedSampler(
-            trainset, num_replicas=distributed_world_size,             rank=distributed_rank, shuffle=True,            seed=manual_seed_trainloader
+            trainset, num_replicas=distributed_world_size, rank=distributed_rank, shuffle=True, seed=manual_seed_trainloader
         )
         testsampler = torch.utils.data.distributed.DistributedSampler(
             testset, num_replicas=distributed_world_size, rank=distributed_rank, shuffle=False, seed=manual_seed_trainloader
-            )
+        )
         if validset is not None:
             validsampler = torch.utils.data.distributed.DistributedSampler(validset, num_replicas=distributed_world_size, rank=distributed_rank, shuffle=False, seed=manual_seed_trainloader)
     
@@ -199,10 +209,10 @@ def get_dataloaders(
     trainloader_generator = get_torch_generator(manual_seed_trainloader if (shuffle_train or not distributed) else None)
     
     trainloader = torch.utils.data.DataLoader(
-        trainset, batch_size=batch_train, shuffle=shuffle_train, generator=trainloader_generator, batch_sampler=trainsampler, pin_memory=True, drop_last=True, **kwargs)
+        trainset, batch_size=batch_train, shuffle=shuffle_train, generator=trainloader_generator, sampler=trainsampler, pin_memory=True, drop_last=drop_last, **kwargs)
     testloader = torch.utils.data.DataLoader(
-        testset, batch_size=batch_test, shuffle=False, batch_sampler=testsampler, pin_memory=True, **kwargs)
+        testset, batch_size=batch_test, shuffle=False, sampler=testsampler, pin_memory=True, drop_last=drop_last, **kwargs)
     validloader = torch.utils.data.DataLoader( 
-        validset, batch_size=batch_valid, shuffle=False, batch_sampler=validsampler, pin_memory=True, **kwargs) if validset is not None else None
+        validset, batch_size=batch_valid, shuffle=False, sampler=validsampler, pin_memory=True, drop_last=drop_last, **kwargs) if validset is not None else None
     return trainloader, testloader, validloader
 
