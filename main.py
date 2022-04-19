@@ -58,7 +58,8 @@ def main():
         set_up_training(config=config)
 
 def set_up_training(gpu=None, config=None):
-    config = get_config()
+    if config is None:
+        config = get_config()
 
     is_distributed = hasattr(config, "distributed") and config.distributed is not None
 
