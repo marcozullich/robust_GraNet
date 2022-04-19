@@ -20,7 +20,7 @@ class SLURM_Trainer():
     
     def __call__(self):
         print(f"Starting distributed training with config: {self.config}")
-        init_dist_node(self.config.distributed)
+        init_dist_node(self.config)
         main.set_up_training(config=self.config)
 
 def handle_slurm(config):
@@ -71,9 +71,9 @@ def handle_sigusr1(signum, frame):
 def handle_sigterm(signum, frame):
     pass
 
-def init_dist_node(slurm_config):
+def init_dist_node(config):
     if "SLURM_JOB_ID" in os.environ:
-        slurm_config.ngpus_per_node = torch.cuda.device_count()
+        config.distributed.ngpus_per_node = torch.cuda.device_count()
 
         # requeue job on SLURM preemption
         signal.signal(signal.SIGUSR1, handle_sigusr1)
@@ -83,11 +83,11 @@ def init_dist_node(slurm_config):
         cmd = 'scontrol show hostnames ' + os.getenv('SLURM_JOB_NODELIST')
         stdout = subprocess.check_output(cmd.split())
         host_name = stdout.decode().splitlines()[0]
-        slurm_config.dist_url = f'tcp://{host_name}:{slurm_config.port}'
+        config.distributed.dist_url = f'tcp://{host_name}:{config.distributed.port}'
 
         # distributed parameters
-        slurm_config.rank = int(os.getenv('SLURM_NODEID')) * slurm_config.ngpus_per_node
-        slurm_config.world_size = int(os.getenv('SLURM_NNODES')) * slurm_config.ngpus_per_node
+        config.distributed.rank = int(os.getenv('SLURM_NODEID')) * config.distributed.ngpus_per_node
+        config.distributed.world_size = int(os.getenv('SLURM_NNODES')) * config.distributed.ngpus_per_node
     else:
         raise RuntimeError("SLURM_JOB_ID not in environment. Cannot execute slurm.")
 
@@ -105,17 +105,17 @@ def setup_for_distributed(is_master):
 
     __builtin__.print = print
 
-def init_dist_gpu(slurm_config):
+def init_dist_gpu(config):
     job_env = submitit.JobEnvironment()
-    slurm_config.logs_folder = Path(slurm_config.logs_folder) / str(job_env.job_id)
-    slurm_config.gpu = job_env.local_rank
-    slurm_config.rank = job_env.global_rank
+    config.distributed.logs_folder = Path(config.distributed.logs_folder) / str(job_env.job_id)
+    config.distributed.gpu = job_env.local_rank
+    config.distributed.rank = job_env.global_rank
 
-    dist.init_process_group(backend="gloo", init_method=slurm_config.dist_url, world_size=slurm_config.world_size, rank=slurm_config.rank)
-    torch.cuda.set_device(slurm_config.gpu)
+    dist.init_process_group(backend="gloo", init_method=config.distributed.dist_url, world_size=config.distributed.world_size, rank=config.distributed.rank)
+    torch.cuda.set_device(config.distributed.gpu)
     cudnn.benchmark = True
-    slurm_config.main = (slurm_config.rank == 0)
-    setup_for_distributed(slurm_config.main)
+    config.distributed.main = (config.distributed.rank == 0)
+    setup_for_distributed(config.distributed.main)
 
 
 
