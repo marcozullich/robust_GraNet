@@ -1,16 +1,16 @@
-from numpy import gradient
-import torch
+import os
+from collections import OrderedDict as Odict
 from enum import Enum
 from typing import Union
-import os
-from apex import amp
-from collections import OrderedDict as Odict
 
-from .pruning_mask import _Mask, GraNetMask, GradientsAccumulationMethod, GradualPruningMask, LMMask, NoMask, RGraNetMask
-from .pytorch_utils import AverageMeter, accuracy as acc_fn
-from .model_logger import ModelLogger, Verbosity, Milestone
-from .pytorch_utils import set_dtype_
+import torch
+from apex import amp
+
+from .model_logger import DistributedLogger, Milestone
+from .pruning_mask import GradientsAccumulationMethod, GradualPruningMask, GraNetMask, LMMask, NoMask, RGraNetMask, _Mask
+from .pytorch_utils import accuracy as acc_fn
 from .utils import coalesce
+
 
 class TrainingMilestone(Enum):
     START_TRAIN = 0
@@ -40,36 +40,48 @@ class Model(torch.nn.Module):
         mask:_Mask=None,
         mask_class=LMMask,
         mask_kwargs:dict=None,
-        verbose:bool=True,
-        name:str="",
+        # name:str="",
+        distributed_device:Union[str, torch.device]=None,
+        is_main_device:bool=True,
     ):
         super().__init__()
         self.net = module
-        optimizer_kwargs = coalesce(optimizer_kwargs, {})
+        optimizer_kwargs = coalesce(vars(optimizer_kwargs), {})
         self.optimizer = optimizer_class(self.net.parameters(), **optimizer_kwargs)
-        lr_scheduler_kwargs = coalesce(lr_scheduler_kwargs, {})
+        lr_scheduler_kwargs = coalesce(vars(lr_scheduler_kwargs), {})
         self.scheduler = lr_scheduler_class(self.optimizer, **lr_scheduler_kwargs)
         self.scheduler_update_time = lr_scheduler_update_time
         self.loss_fn = loss_fn
 
         mask_kwargs = coalesce(mask_kwargs, {})
-        
 
         self.parameters_names = self._get_parameters_names()
-        self.logger = ModelLogger(logs_categories=[], verbosity=Verbosity.VERBOSE_PRINT if verbose else Verbosity.SILENT)
 
         self.mask = mask
         if self.mask is None:
             self.mask = mask_class(**mask_kwargs, net=self)
         
-        self.name = name
+        # self.name = name
         self.gradients_accumulator = None
-        
+
+        self.scaler = torch.cuda.amp.GradScaler()
+
+        self.is_main_device = is_main_device
+        self.distributed_device = distributed_device
+        # If distributed training, the device is set at initialization and cannot be changed in-training
+        if distributed_device is not None:
+            self.net.cuda(distributed_device)
+            torch.nn.SyncBatchNorm.convert_sync_batchnorm(self.net)
+            self.net = torch.nn.parallel.DistributedDataParallel(self.net, device_ids=[distributed_device])
+
 
     def _get_parameters_names(self):
         return [n for n, _ in self.net.named_parameters()]
     
     def filtered_named_parameters(self, names):
+        '''
+        Returns a generator of tuples of (name, parameter) where the parameters are filtered by the specified names.
+        '''
         for n, p in self.net.named_parameters():
             if any([na in n for na in names]):
                 yield n, p
@@ -79,15 +91,6 @@ class Model(torch.nn.Module):
     
     def numel(self):
         return sum([p.numel() for p in self.net.parameters()])
-
-    def _determine_logger_verbosity(verbose, telegram_chat_token_path):
-        if verbose and telegram_chat_token_path is not None:
-            return Verbosity.VERBOSE_ALL
-        if verbose:
-            return Verbosity.VERBOSE_PRINT
-        if telegram_chat_token_path is not None:
-            logger_verbosity = Verbosity.VERBOSE_TELEGRAM
-        return Verbosity.SILENT
 
     def _clone_grad(self):
         return [n.grad.clone() for n in self.net.parameters()]
@@ -112,7 +115,6 @@ class Model(torch.nn.Module):
                     self._accumulate_grad()
             else:
                 raise ValueError(f"Unknown gradients accumulation method {self.mask.gradients_accumulation_method}")
-        # if hasattr(self.mask.scheduling, "is_waiting_for_regrowth") and self.mask.scheduling.is_waiting_for_regrowth() and hasattr(self.mask, "accumulate_gradients_before_regrowth") and self.mask.accumulate_gradients_before_regrowth:
         
     def _drop_accumulated_grad(self):
         self.gradients_accumulator = None
@@ -123,16 +125,33 @@ class Model(torch.nn.Module):
             self.mask.need_gradient_reset = False
 
     def _clip_grad_norm(self, norm:float):
-        torch.nn.utils.clip_grad_norm_(self.net.parameters(), 1)
+        '''
+        Operates clipping on the gradients w.r.t. the speicifed norm (L2).
+        '''
+        torch.nn.utils.clip_grad_norm_(self.net.parameters(), norm)
 
+    def _get_device(self):
+        '''
+        Used to inspect the device of the model in case of distributed training.
+        '''
+        if self.distributed_device is None:
+            device = next(iter(self.parameters())).device
+        else:
+            device = self.distributed_device
+        return device
+
+    def _to_device(self, device):
+        '''
+        Sends the model to the desired device if not training in a distributed fashion; otherwise, does nothing.
+        '''
+        if self.distributed_device is None:
+            device = coalesce(device, use_gpu_if_available())
+            self.net.to(device)
     
     def train_model(
         self,
         trainloader:torch.utils.data.DataLoader,
         num_epochs:int,
-        num_ite_optimizer_step:int=1,
-        telegram_config_path=None,
-        telegram_config_name=None,
         device:Union[torch.device,str]=None,
         clip_grad_norm_before_epoch:int=None,
         checkpoint_path:str=None,
@@ -140,64 +159,35 @@ class Model(torch.nn.Module):
         final_model_path:str=None,
         epoch_start:int=0,
         ite_start:int=0,
-        dtype:Union[str, torch.dtype]=torch.float32,
-        amp_args=None,
         burnout_epochs:int=0,
-        **kwargs
+        half_precision:bool=False,
     ):
+        if not half_precision:
+            self.scaler._enabled = False
+        
         if clip_grad_norm_before_epoch is None:
             clip_grad_norm_before_epoch = num_epochs + burnout_epochs + 1
-        device = coalesce(device, use_gpu_if_available())
         
-        self.to(device)
+        self._to_device(device)
 
-        self.net, self.optimizer = amp.initialize(self.net, self.optimizer, **amp_args)
+        # self.net, self.optimizer = amp.initialize(self.net, self.optimizer, **amp_args)
 
-        # set_dtype_(self, dtype)
-
-        self.train()
-
-        if telegram_config_path is not None and telegram_config_name is not None:
-            self.logger.telegram_configure(telegram_config_path, telegram_config_name)
-        self.logger.add_log_categories("epoch", "train_accuracy", "train_loss", "train_lr")
-
-        if self.mask is not None and not isinstance(self.mask, NoMask):
-            self.logger.add_log_categories("mask sparsity", "model sparsity")
-
-        self.logger.prompt_start(
-            nepochs=num_epochs + burnout_epochs,
-            net=self,
-            save_path=final_model_path,
-            epoch_start=epoch_start,
-            ite_start=ite_start,
-            dtype=dtype
-        )
-
+        self.net.train()
+        
         checkpoint_save_path_iteration = checkpoint_path if checkpoint_save_time == TrainingMilestone.END_ITERATION else None
 
-        for epoch in range(epoch_start, num_epochs + burnout_epochs):
-            accuracy_meter = AverageMeter()
-            loss_meter = AverageMeter()
-            accuracy, loss_val = self.train_epoch(
-                trainloader=trainloader,
+        for epoch in range(epoch_start, tot_epochs := num_epochs + burnout_epochs):
+            if hasattr(trainloader.sampler, "set_epoch"):
+                trainloader.sampler.set_epoch(epoch)
+            self.train_epoch(
                 epoch=epoch,
-                accuracy_meter=accuracy_meter,
-                loss_meter=loss_meter,
-                device=device,
-                num_ite_optimizer_step=num_ite_optimizer_step, 
+                trainloader=trainloader,
                 clip_grad_norm_before_epoch=clip_grad_norm_before_epoch,
                 checkpoint_path=checkpoint_save_path_iteration,
                 ite_start=ite_start,
-                burnout=epoch >= num_epochs
+                burnout=epoch >= num_epochs,
+                epochs=tot_epochs
             )
-
-            dict_log = {"train_accuracy": accuracy, "train_loss": loss_val, "train_lr": self.scheduler.get_last_lr()}
-
-            if self.mask is not None and not isinstance(self.mask, NoMask):
-                dict_log["mask sparsity"] = self.mask.get_mask_sparsity()
-                dict_log["model sparsity"] = self.mask.get_model_sparsity()
-
-            self.logger.log(dict_log, milestone=Milestone.TRAIN_EPOCH)
 
             if self.scheduler_update_time == TrainingMilestone.END_EPOCH:
                 self.scheduler.step()
@@ -205,7 +195,7 @@ class Model(torch.nn.Module):
             if checkpoint_path is not None and checkpoint_save_time == TrainingMilestone.END_EPOCH:
                 torch.save(self.checkpoint(epoch, len(trainloader)), checkpoint_path)
 
-        if final_model_path is not None:
+        if final_model_path is not None and self.is_main_device:
             torch.save(self.state_dict(), final_model_path)
             if checkpoint_path is not None:
                 os.remove(checkpoint_path)
@@ -214,29 +204,29 @@ class Model(torch.nn.Module):
         self,
         epoch:int,
         trainloader:torch.utils.data.DataLoader,
-        accuracy_meter:AverageMeter,
-        loss_meter:AverageMeter,
-        device,
-        num_ite_optimizer_step:int=1,
         clip_grad_norm_before_epoch:int=0,
         checkpoint_path:str=None,
         ite_start:int=0,
-        dtype:Union[str, torch.dtype]=torch.float32,
         burnout:bool=False,
-        **kwargs
-    ):
-        # times = []
-        for i, (data, labels) in enumerate(trainloader):
+        ite_print:int=None,
+        epochs:int=None
+    ):  
+        logger = DistributedLogger()
+        device = self._get_device()
+
+        if ite_print is None:
+            ite_print = len(trainloader)
+        logger_header = f"{epoch+1}/{epochs}"
+
+        for i, (data, labels) in enumerate(logger.looper(trainloader, print_freq=ite_print, header=logger_header)):
             if i < ite_start:
                 continue
             
-            # step_optimizer_this_ite = ((i + 1) % num_ite_optimizer_step == 0) and (not burnout)
-            # if step_optimizer_this_ite:
             self.optimizer.zero_grad()
 
-            data, labels = data.to(device), labels.to(device)
+            data, labels = data.to(device, non_blocking=True), labels.to(device, non_blocking=True)
             
-            update_mask_this_ite = (i + 1) % num_ite_optimizer_step == 0 and not burnout
+            update_mask_this_ite = not burnout
 
             if self.mask is not None and (not isinstance(self.mask, NoMask)) and update_mask_this_ite:
                 self.mask.step()
@@ -244,17 +234,19 @@ class Model(torch.nn.Module):
                     # RGraNet: prune before weights update and gradient computation
                     self.mask.prune()
 
-            preds = self.net(data)
+            with torch.cuda.amp.autocast(True):
+                preds = self.net(data)
+                loss = self.loss_fn(preds, labels)
 
-            loss = self.loss_fn(preds, labels)
+            self.scaler.scale(loss).backward()
 
+            # with amp.scale_loss(loss, self.optimizer) as scaled_loss:
+            #     scaled_loss.backward()
 
-            with amp.scale_loss(loss, self.optimizer) as scaled_loss:
-                scaled_loss.backward()
+            torch.cuda.synchronize()
 
             if epoch < clip_grad_norm_before_epoch:
                 self._clip_grad_norm(1)
-                # torch.nn.utils.clip_grad_norm_(self.net.parameters(), 1)
             
             self._accumulate_grad_if_required()
 
@@ -267,7 +259,8 @@ class Model(torch.nn.Module):
             # if step_optimizer_this_ite:
             if not isinstance(self.mask, NoMask):
                 self.mask.suppress_grad()
-            self.optimizer.step()
+            self.scaler.step(self.optimizer)
+            self.scaler.update()
             if not isinstance(self.mask, NoMask):
                 self.mask.apply()
             
@@ -276,107 +269,64 @@ class Model(torch.nn.Module):
                 self.mask.prune()
                 self.mask.regrow()
             
-            accuracy_meter.update(acc_fn(preds, labels), n=data.shape[0])
-            loss_meter.update(loss.item(), n=data.shape[0])
+            logger.update(loss=loss.item())
+            logger.update(accuracy=acc_fn(preds, labels))
+
             if self.scheduler_update_time == TrainingMilestone.END_ITERATION: # and step_optimizer_this_ite:
                 self.scheduler.step()
-            
-            
 
-            if checkpoint_path is not None:
-                torch.save(self.checkpoint(epoch, i), checkpoint_path)
+            if checkpoint_path is not None and self.is_main_device:
+                torch.save(self.state_dict(epoch, i), checkpoint_path)
 
-        # print(f"Average time of inference {sum(times)/len(times)}")
+        logger.synchronize_between_processes()
+        print("Averaged stats:", logger)
 
-        return accuracy_meter.avg, loss_meter.avg
+        return logger.to_dict()
     
-    def _set_up_logger_for_evaluation(self, validation:bool, is_adv:bool, eval_loss:bool, telegram_config_path, telegram_config_name):
-        if telegram_config_path is not None and telegram_config_name is not None:
-            self.logger.telegram_configure(telegram_config_path, telegram_config_name)
-        if validation:
-            if not is_adv:
-                milestone = Milestone.VALIDATION
-                category_prefix = "validation_"
-            else:
-                milestone = Milestone.VALIDATION_ADV
-                category_prefix = "validation_adv_"
-        else:
-            if not is_adv:
-                milestone = Milestone.TEST
-                category_prefix = "test_"
-            else:
-                milestone = Milestone.TEST_ADV
-                category_prefix = "test_adv_"
-        
-        self.logger.add_log_categories(category_prefix + "accuracy")
-        if eval_loss:
-            self.logger.add_log_categories(category_prefix + "loss")
 
-        return milestone, category_prefix
-
-    def evaluate(self, testloader:torch.utils.data.DataLoader,  eval_loss=True, adversarial_attack=None, telegram_config_path=None, telegram_config_name=None, validation=False, device=None, dtype:Union[str, torch.dtype]=torch.float32 ,**kwargs):
+    def evaluate(self, testloader:torch.utils.data.DataLoader,  eval_loss=True, adversarial_attack=None, device=None):
         self.eval()
-        device = coalesce(device, use_gpu_if_available())
 
-        # set_dtype_(self, dtype)
-        self.to(device)
+        device = self._get_device()
+        self._to_device(device)
 
-        milestone, category_prefix = self._set_up_logger_for_evaluation(validation, adversarial_attack is not None, eval_loss, telegram_config_path, telegram_config_name)
-        
-        accuracy_meter = AverageMeter()
-        loss_meter = AverageMeter() if eval_loss else None
         with torch.set_grad_enabled(adversarial_attack is not None):
-            for data, labels in testloader:
-                # set_dtype_(data, dtype)
-                # set_dtype_(labels, dtype)
-                data = data.to(device)
-                labels = labels.to(device)
+            logger = DistributedLogger()
+            for data, labels in logger.looper(testloader, header="TEST", print_freq=len(testloader)):
 
-                preds = self.forward(data)
-                accuracy_meter.update(acc_fn(preds, labels), n=len(labels))
-                if loss_meter is not None:
-                    loss_meter.update(self.loss_fn(preds, labels).item(), n=len(labels))
+                data = data.to(device, non_blocking=True)
+                labels = labels.to(device, non_blocking=True)
 
-        accuracy = accuracy_meter.avg
-        loss_val = loss_meter.avg if eval_loss else None
-        
-        logging_dict = {category_prefix + "accuracy": accuracy}
-        if eval_loss:
-            logging_dict[category_prefix + "loss"] = loss_val
-        self.logger.log(logging_dict, milestone=milestone)
-        return accuracy, loss_val
+                with torch.cuda.amp.autocast(True):
+                    preds = self.net(data)
+
+                torch.cuda.synchronize()
+
+                if eval_loss:
+                    logger.update(loss=self.loss_fn(preds, labels).item())
+                logger.update(accuracy=acc_fn(preds, labels))
+
+        logger.synchronize_between_processes()
+        print("Averaged stats:", logger)
+
+        return logger.to_dict()
 
     def state_dict(self):
         state_dict = {
             "net": self.net.state_dict(),
             "optimizer": self.optimizer.state_dict(),
             "scheduler": self.scheduler.state_dict(),
-            "logger": self.logger.state_dict(),
             "mask": self.mask.state_dict() if self.mask is not None else None,
-            "device": next(iter(self.net.parameters())).device,
-            "amp": amp.state_dict()
+            "scaler": self.scaler.state_dict(),
         }
         return state_dict
 
     def load_state_dict(self, state_dict: dict):
-        device = state_dict["device"]
         self.net.load_state_dict(state_dict["net"])
-        self.net.to(device)
         self.optimizer.load_state_dict(state_dict["optimizer"])
         self.scheduler.load_state_dict(state_dict["scheduler"])
-        self.logger.load_state_dict(state_dict["logger"])
-        amp.load_state_dict(state_dict["amp"])
+        self.scaler.load_state_dict(state_dict["scaler"])
         if (mask_state_dict:=state_dict["mask"]) is not None:
             self.mask.load_state_dict(mask_state_dict)
 
-    def checkpoint(self, epoch, ite):
-        checkpoint_dict = {
-            "epoch": epoch,
-            "ite": ite,
-            "state_dict": self.state_dict(),
-        }
-        return checkpoint_dict
 
-    def load_checkpoint(self, checkpoint):
-        self.load_state_dict(checkpoint["state_dict"])
-        return checkpoint["epoch"], checkpoint["ite"]

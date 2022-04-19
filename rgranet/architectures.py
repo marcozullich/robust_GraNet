@@ -1,6 +1,20 @@
 import torch
 from torch import nn
+import timm
 import torch.nn.functional as F
+from .utils import coalesce
+
+
+
+def get_model(name, num_classes, **kwargs):
+    NET_PARSER = {
+        "FCN4": FCN4,
+        "PreActResNet18": PreActResNet18
+    }
+    if NET_PARSER.get(name) is not None:
+        return NET_PARSER[name](num_classes=num_classes, **kwargs)
+    kwargs.pretrained = coalesce(kwargs.pretrained, False)
+    return timm.create_model(name, num_classes=num_classes, **kwargs)
 
 class FCN4(nn.Module):
     def __init__(self, num_classes=10):

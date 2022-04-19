@@ -1,6 +1,9 @@
 import os
 import yaml
 from typing import Collection
+from functools import singledispatch
+from types import SimpleNamespace
+from collections.abc import Mapping
 
 
 def coalesce(element, value_if_none):
@@ -31,6 +34,37 @@ def is_int(string):
     except ValueError:
         return False
 
+# class NameSpace(SimpleNamespace, Mapping):
+#     def __init__(self, **kwargs):
+#         super(SimpleNamespace, self).__init__(**kwargs)
+    
+#     def __repr__(self):
+#         super(SimpleNamespace, self).__repr__()
+    
+#     def __eq__(self, other):
+#         super(SimpleNamespace, self).__eq__(other)
+    
+#     def __getitem__(self, key):
+#         return self.__dict__[key]
+    
+#     def __iter__(self):
+#         return self.__dict__
+    
+#     def __len__(self):
+#         return len(self.__dict__)
+
+@singledispatch
+def wrap_namespace(ob):
+    return ob
+
+@wrap_namespace.register(dict)
+def _wrap_dict(ob):
+    return SimpleNamespace(**{k: wrap_namespace(v) for k, v in ob.items()})
+
+@wrap_namespace.register(list)
+def _wrap_list(ob):
+    return [wrap_namespace(v) for v in ob]
+
 class DictOfLists(dict):
     def __init__(self, keys:Collection=None):
         if keys is None:
@@ -53,3 +87,4 @@ class DictOfLists(dict):
         for k in keys:
             if self.get(k) is None:
                 self[k] = []
+

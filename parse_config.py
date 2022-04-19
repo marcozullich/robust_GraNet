@@ -1,8 +1,9 @@
-from operator import is_
 import os
+from textwrap import wrap
 import timm
 import torch
 import random
+
 
 from rgranet import architectures 
 from rgranet import data
@@ -11,11 +12,10 @@ from rgranet import pruning_mask as msk
 from rgranet.pruning_mask import GradientsAccumulationMethod
 from rgranet import pruning_rate_schedule as prs
 from rgranet import model
-from rgranet.utils import yaml_load, coalesce, is_int
+from rgranet.utils import yaml_load, wrap_namespace
 
 def parse_env(string):
     return os.path.expandvars(string)
-
 
 def parse_path(path):
     return os.path.expanduser(parse_env(path))
@@ -32,33 +32,35 @@ def parse_config_none(config):
         elif isinstance(v, str):
             config[k] = parse_str(v)
 
-def parse_net(config):
-    if config["net"] == "FCN4":
-        config["net_class"] = lambda **kwargs: architectures.FCN4(**kwargs)
-    elif config["net"] == "PreActResNet18":
-        config["net_class"] = lambda num_classes, **kwargs: architectures.PreActResNet18(num_classes=num_classes, **kwargs)
-    else:
-        config["net_class"] = lambda num_classes, **kwargs: timm.create_model(config["net"], pretrained=False, num_classes=num_classes, **kwargs)
+# def parse_net(config):
+#     if config.net == "FCN4":
+#         config.net_class = lambda **kwargs: architectures.FCN4(**kwargs)
+#     elif config.net == "PreActResNet18":
+#         config.net_class = lambda num_classes, **kwargs: architectures.PreActResNet18(num_classes=num_classes, **kwargs)
+#     else:
+#         config.net_class = lambda num_classes, **kwargs: timm.create_model(config.net, pretrained=False, num_classes=num_classes, **kwargs)
 
 def parse_datasets(config):
     parser = {
-        "mnist": data.MNIST_DataLoaders,
-        "cifar10" : data.CIFAR10_DataLoaders,
+        "mnist": data.SupportedDataset.MNIST,
+        "cifar10" : data.SupportedDataset.CIFAR10,
+        "cifar100": data.SupportedDataset.CIFAR100,
+        "imagenet": data.SupportedDataset.IMAGENET
     }
-    config["data"]["dataset_loader"] = parser[config["data"]["dataset"].lower()]
+    config.data.name = parser[config.data.dataset.lower()]
 
 def parse_loss(config):
     parser = {
         "Cross Entropy": torch.nn.CrossEntropyLoss,
     }
-    config["train"]["loss"] = parser[config["train"]["loss"]]
+    config.train.loss = parser[config.train.loss]
 
 def parse_optim(config):
     parser = {
         "SGD": torch.optim.SGD,
         "Adam": torch.optim.Adam,
     }
-    config["train"]["optim"]["class"] = parser[config["train"]["optim"]["class"].upper()]
+    config.train.optim._class = parser[config.train.optim._class.upper()]
 
 def parse_lr_scheduler(config):
     parser = {
@@ -66,7 +68,7 @@ def parse_lr_scheduler(config):
         "CyclicLR": torch.optim.lr_scheduler.CyclicLR,
         "CyclicLRWithBurnout": lr_schedulers.CyclicLRWithBurnout
     }
-    config["train"]["optim"]["scheduler"]["class"] = parser[config["train"]["optim"]["scheduler"]["class"]]
+    config.train.optim.scheduler._class = parser[config.train.optim.scheduler._class]
 
 def parse_milestone(config):
     parser = {
@@ -74,8 +76,8 @@ def parse_milestone(config):
         "iteration": model.TrainingMilestone.END_ITERATION,
     }
 
-    config["train"]["optim"]["scheduler"]["update_time"] = parser[config["train"]["optim"]["scheduler"]["update_time"].lower()]
-    config["train"]["checkpoint_save_time"] = parser[config["train"]["checkpoint_save_time"].lower()]
+    config.train.optim.scheduler.update_time = parser[config.train.optim.scheduler.update_time.lower()]
+    config.train.checkpoint_save_time = parser[config.train.checkpoint_save_time.lower()]
 
 def parse_mask(config):
     parser = {
@@ -86,41 +88,43 @@ def parse_mask(config):
         "RGraNetMask": msk.RGraNetMask,
         "GradualPruningMask": msk.GradualPruningMask,
     }
-    config["train"]["pruning"]["mask_class"] = parser[config["train"]["pruning"]["mask_class"]]
+    config.train.pruning.mask_class = parser[config.train.pruning.mask_class]
 
 def parse_clip_grad_norm(config):
-    if config["train"].get("clip_grad_norm") is not None and config["train"].get("clip_grad_norm_before_epoch") is not None:
+    if hasattr(config.train, "clip_grad_norm") and hasattr(config.train, "clip_grad_norm_before_epoch"):
         raise ValueError("clip_grad_norm and clip_grad_norm_before_epoch cannot be set at the same time")
 
-    if config["train"].get("clip_grad_norm"):
-        clip_grad_norm = config["train"].pop("clip_grad_norm")
-        config["train"]["clip"]["clip_grad_norm_before_epoch"] = config["train"]["epochs"] + config["train"]["burnout_epochs"] + 1 if clip_grad_norm else 0
+    if hasattr(config.train, "clip_grad_norm"):
+        clip_grad_norm = config.train.clip_grad_norm
+        del config.train.clip_grad_norm
+        config.train.clip_grad_norm_before_epoch = config.train.epochs + config.train.burnout_epochs + 1 if clip_grad_norm else 0
 
     
 
 def parse_grad_accumul(config):
-    if config["train"]["pruning"]["hyperparameters"].get("accumulate_gradients_before_regrowth") is not None and config["train"]["pruning"]["hyperparameters"].get("gradients_accumulation_method") is not None:
+    if hasattr(config.train.pruning.hyperparameters, "accumulate_gradients_before_regrowth") and hasattr(config.train.pruning.hyperparameters, "gradients_accumulation_method"):
         raise ValueError("Cannot specify, in configuration, both accumulate_gradients_before_regrowth and gradients_accumulation_method")
 
-    if config["train"]["pruning"]["hyperparameters"].get("accumulate_gradients_before_regrowth") is not None:
-        grad_before_regrowth = config["train"]["pruning"]["hyperparameters"].pop("accumulate_gradients_before_regrowth")
+    if hasattr(config.train.pruning.hyperparameters, "accumulate_gradients_before_regrowth"):
+        grad_before_regrowth = config.train.pruning.hyperparameters.accumulate_gradients_before_regrowth
+        del config.train.pruning.hyperparameters.accumulate_gradients_before_regrowth
         if grad_before_regrowth:
-            config["train"]["pruning"]["hyperparameters"]["gradients_accumulation_method"] = GradientsAccumulationMethod.BETWEEN_PRUNE_AND_REGROWTH
+            config.train.pruning.hyperparameters.gradients_accumulation_method = GradientsAccumulationMethod.BETWEEN_PRUNE_AND_REGROWTH
         else:
-            config["train"]["pruning"]["hyperparameters"]["gradients_accumulation_method"] = GradientsAccumulationMethod.NEVER
+            config.train.pruning.hyperparameters.gradients_accumulation_method = GradientsAccumulationMethod.NEVER
 
-    elif config["train"]["pruning"]["hyperparameters"].get("gradients_accumulation_method") is not None:
-        grad_accum_method = config["train"]["pruning"]["hyperparameters"]["gradients_accumulation_method"].lower()
+    elif hasattr(config.train.pruning.hyperparameters, "gradients_accumulation_method"):
+        grad_accum_method = config.train.pruning.hyperparameters.gradients_accumulation_method.lower()
         parser = {
             "never": GradientsAccumulationMethod.NEVER,
             "always": GradientsAccumulationMethod.ALWAYS,
             "between_prune_and_regrowth": GradientsAccumulationMethod.BETWEEN_PRUNE_AND_REGROWTH,
         }
-        config["train"]["pruning"]["hyperparameters"]["gradients_accumulation_method"] = parser[grad_accum_method]
+        config.train.pruning.hyperparameters.gradients_accumulation_method = parser[grad_accum_method]
 
 
 def parse_pr_scheduler(config):
-    if config["train"]["pruning"].get("scheduler") is not None:
+    if hasattr(config.train.pruning, "scheduler"):
         parser = {
             "None": prs.NoPruningRateScheduling,
             "NoPruningRateScheduling": prs.NoPruningRateScheduling,
@@ -129,20 +133,26 @@ def parse_pr_scheduler(config):
             "PruningRateCubicScheduling": prs.PruningRateCubicScheduling,
             "PruningRateCubicSchedulingWithRegrowth": prs.PruningRateCubicSchedulingWithRegrowth,
         }
-        config["train"]["pruning"]["scheduler"]["class"]= parser[config["train"]["pruning"]["scheduler"]["class"]]
+        config.train.pruning.scheduler._class= parser[config.train.pruning.scheduler._class]
+
+def parse_seed(config):
+    if hasattr(config,"distributed"):
+        config.distributed.seed = vars(config.get("global_seed"))
 
 def config_savefile(config):
-    if config.get("num_run") is None:
-        config["num_run"] = int(random.random()*1e6)
+    if not hasattr(config, "num_run"):
+        config.num_run = int(random.random()*1e6)
 
-    filename, ext = os.path.splitext(config["train"]["final_model_save_path"])
-    config["train"]["final_model_save_path"] = f"{filename}_{config['num_run']}{ext}"
+    filename, ext = os.path.splitext(config.train.final_model_save_path)
+    config.train.final_model_save_path = f"{filename}_{config.num_run}{ext}"
 
 def parse_config(config_path):
     config = yaml_load(config_path)
+    config = wrap_namespace(config)
+
     
     # parse_config_none(config)
-    parse_net(config)
+    # parse_net(config)
     parse_datasets(config)
     parse_loss(config)
     parse_optim(config)
@@ -152,9 +162,10 @@ def parse_config(config_path):
     parse_clip_grad_norm(config)
     parse_grad_accumul(config)
     parse_pr_scheduler(config)
+    parse_seed(config)
     config_savefile(config)
-    config["data"]["hyperparameters"]["root"] = parse_path(config["data"]["hyperparameters"]["root"])
-    config["util"]["telegram_config_name"] = parse_path(config["util"]["telegram_config_name"]) if config["util"]["telegram_config_name"] is not None else None
+    config.data.hyperparameters.dataset_root = parse_path(config.data.hyperparameters.dataset_root)
+    
 
         
 
