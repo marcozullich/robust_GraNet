@@ -137,7 +137,7 @@ def parse_pr_scheduler(config):
 
 def parse_seed(config):
     if hasattr(config,"distributed"):
-        config.distributed.seed = vars(config.get("global_seed"))
+        config.distributed.seed = vars(config).get("global_seed")
 
 def config_savefile(config):
     if not hasattr(config, "num_run"):
