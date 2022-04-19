@@ -67,7 +67,7 @@ def set_up_training(gpu=None, config=None):
     pretty_print(config)
 
     if is_distributed:
-        distributed.init_dist_gpu(config.distributed)
+        distributed.init_dist_gpu(config)
     
     print(f"save file {config.train.final_model_save_path}")
 
