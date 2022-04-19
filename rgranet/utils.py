@@ -9,6 +9,11 @@ from collections.abc import Mapping
 def coalesce(element, value_if_none):
     return value_if_none if element is None else element
 
+def dict_get_pop(dictionary, key, value_if_key_not_exists=None):
+    if dictionary.get(key) is not None:
+        return dictionary.pop(key, None)
+    else:
+        return value_if_key_not_exists
 
 def make_subdirectory(path):
     if path is not None:
