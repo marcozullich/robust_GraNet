@@ -24,36 +24,35 @@ class SLURM_Trainer():
         main.set_up_training(config=self.config)
 
 def handle_slurm(config):
-    slurm_config = config.distributed
-    executor = submitit.AutoExecutor(folder=slurm_config.logs_folder, slurm_max_num_timeout=slurm_config.max_num_timeout)
+    executor = submitit.AutoExecutor(folder=config.distributed.logs_folder, slurm_max_num_timeout=config.distributed.max_num_timeout)
 
     executor.update_parameters(
-        mem_gb=12*slurm_config.ngpus,
-        gpus_per_node=slurm_config.ngpus,
-        tasks_per_node=slurm_config.ngpus,
+        mem_gb=12*config.distributed.ngpus,
+        gpus_per_node=config.distributed.ngpus,
+        tasks_per_node=config.distributed.ngpus,
         cpus_per_task=2,
-        nodes=slurm_config.nnodes,
+        nodes=config.distributed.nnodes,
         timeout_min=5,
-        slurm_partition=slurm_config.partition
+        slurm_partition=config.distributed.partition
     )
 
-    coalesce(slurm_config.port, random.randint(49152, 65535))
+    config.distributed.port = coalesce(config.distributed.port, random.randint(49152, 65535))
 
 
     additional_parameters = {}
 
-    if slurm_config.nodelist is not None:
-        additional_parameters["nodelist"] = f"{slurm_config.nodelist}"
+    if config.distributed.nodelist is not None:
+        additional_parameters["nodelist"] = f"{config.distributed.nodelist}"
     
-    if slurm_config.qos is not None:
-        additional_parameters["qos"] = slurm_config.qos
+    if config.distributed.qos is not None:
+        additional_parameters["qos"] = config.distributed.qos
     
-    if slurm_config.account is not None:
-        additional_parameters["account"] = slurm_config.account
+    if config.distributed.account is not None:
+        additional_parameters["account"] = config.distributed.account
 
-    if slurm_config.mail_user is not None:
-        additional_parameters["mail-type"] = slurm_config.mail_type
-        additional_parameters["mail-user"] = slurm_config.mail_user
+    if config.distributed.mail_user is not None:
+        additional_parameters["mail-type"] = config.distributed.mail_type
+        additional_parameters["mail-user"] = config.distributed.mail_user
     
     executor.update_parameters(slurm_additional_parameters=additional_parameters)
 
