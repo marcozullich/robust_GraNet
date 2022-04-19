@@ -42,17 +42,17 @@ def handle_slurm(config):
     additional_parameters = {}
 
     if slurm_config.nodelist is not None:
-        additional_parameters.nodelist = f"{slurm_config['nodelist']}"
+        additional_parameters["nodelist"] = f"{slurm_config.nodelist}"
     
     if slurm_config.qos is not None:
-        additional_parameters.qos = slurm_config['qos']
+        additional_parameters["qos"] = slurm_config.qos
     
     if slurm_config.account is not None:
-        additional_parameters.account = slurm_config['account']
+        additional_parameters["account"] = slurm_config.account
 
     if slurm_config.mail_user is not None:
-        additional_parameters["mail-type"] = slurm_config['mail_type']
-        additional_parameters["mail-user"] = slurm_config['mail_user']
+        additional_parameters["mail-type"] = slurm_config.mail_type
+        additional_parameters["mail-user"] = slurm_config.mail_user
     
     executor.update_parameters(slurm_additional_parameters=additional_parameters)
 
