@@ -19,7 +19,7 @@ class SLURM_Trainer():
         self.config = config
     
     def __call__(self):
-        init_dist_node()
+        init_dist_node(self.config.distributed)
         main.set_up_training(config=self.config)
 
 def handle_slurm(config):
