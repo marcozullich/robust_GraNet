@@ -159,7 +159,7 @@ def get_dataloaders(
 
     drop_last = dict_get_pop(kwargs, 'drop_last', distributed)
     if distributed:
-        assert drop_last is False, f"Cannot use drop_last=False in case of distributed training. Please fix."
+        assert drop_last is True, f"Cannot use drop_last=False in case of distributed training. Please fix."
 
     if isinstance(transform_train, str):
         transform_train = TRANSFORM_TYPE_PARSER[transform_train.lower()]
