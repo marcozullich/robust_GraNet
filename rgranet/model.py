@@ -192,6 +192,7 @@ class Model(torch.nn.Module):
                 burnout=epoch >= num_epochs,
                 epochs=tot_epochs,
                 distributed_debug_mode=distributed_debug_mode,
+                distributed_debug_mode_config=distributed_debug_mode_config,
             )
 
             if self.scheduler_update_time == TrainingMilestone.END_EPOCH:
