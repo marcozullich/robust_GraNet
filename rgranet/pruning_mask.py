@@ -42,6 +42,9 @@ class _Mask():
         self.net = net
         for name, _ in net.filtered_named_parameters(self.params_to_prune):
             self.effective_params_to_prune.append(name)
+        ###
+        print("Effective params to prune", self.effective_params_to_prune)
+        ###
         self.device = coalesce(device, next(iter(self.net.parameters())).device)
         self.mask = self._init_mask()
         
@@ -161,7 +164,7 @@ class LMMask(_Mask):
         flattened_abs_params = []
         print("Param names:")
         for name, param in params:
-            print(param)
+            print(name)
             flattened_abs_params.append(param[self.mask[name]].abs())
         flattened_abs_params = torch.cat(flattened_abs_params)
         ###
