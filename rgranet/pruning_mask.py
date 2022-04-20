@@ -72,7 +72,10 @@ class _Mask():
         is_global = coalesce(is_global, self.is_global)
         if is_global:
             parameters = self.net.filtered_named_parameters(self.effective_params_to_prune)
+            ###
+            parameters = list(parameters)
             print("filtered parameters\n", parameters)
+            ###
             new_mask = self._criterion(*parameters, pruning_rate=pruning_rate)
         else:
             new_mask = Odict()
