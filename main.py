@@ -63,12 +63,12 @@ def set_up_training(gpu=None, config=None):
 
     is_distributed = hasattr(config, "distributed") and config.distributed is not None
 
-    print("\t\tConfiguration:")
-    pretty_print(config)
-
     if is_distributed:
         distributed.init_dist_gpu(config)
     
+    print("\t\tConfiguration:")
+    pretty_print(config)
+
     print(f"save file {config.train.final_model_save_path}")
 
     trainloader, testloader = get_data(config)
@@ -134,6 +134,8 @@ def set_up_training(gpu=None, config=None):
     if is_distributed and hasattr(config.distributed, "debug"):
         train_distributed_debug = config.distributed.debug
         train_distributed_debug_config = config.distributed.debug_config
+    
+    print(f"Distributed dbg: {train_distributed_debug}, {train_distributed_debug_config}")
 
     net.train_model(
         trainloader=trainloader,
