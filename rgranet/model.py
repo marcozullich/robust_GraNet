@@ -180,10 +180,7 @@ class Model(torch.nn.Module):
         if not half_precision:
             self.scaler._enabled = False
         
-        ###
-        self.mask.jobno_rank = str(distributed_debug_mode_config.jobno) + "_" + str(distributed_debug_mode_config.rank)
-        ###
-
+        
 
         if clip_grad_norm_before_epoch is None:
             clip_grad_norm_before_epoch = num_epochs + burnout_epochs + 1

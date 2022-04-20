@@ -134,8 +134,6 @@ def set_up_training(gpu=None, config=None):
     if is_distributed and hasattr(config.distributed, "debug"):
         train_distributed_debug = config.distributed.debug
         train_distributed_debug_config = config.distributed.debug_config
-    
-    print(f"Distributed dbg: {train_distributed_debug}, {train_distributed_debug_config}")
 
     net.train_model(
         trainloader=trainloader,
