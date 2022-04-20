@@ -121,6 +121,7 @@ def init_dist_gpu(config):
     if hasattr(config.distributed, "debug") and config.distributed.debug:
         setup_distributed_debug_mode_config(config, job_env)
         print(f"Distributed debug mode: {config.distributed.debug_config}")
+        exit()
 
     dist.init_process_group(backend="gloo", init_method=config.distributed.dist_url, world_size=config.distributed.world_size, rank=config.distributed.rank)
     torch.cuda.set_device(config.distributed.gpu)
