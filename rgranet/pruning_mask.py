@@ -42,9 +42,9 @@ class _Mask():
         self.net = net
         for name, _ in net.filtered_named_parameters(self.params_to_prune):
             self.effective_params_to_prune.append(name)
-        ###
-        print("Effective params to prune", self.effective_params_to_prune)
-        ###
+        # ###
+        # print("Effective params to prune", self.effective_params_to_prune)
+        # ###
         self.device = coalesce(device, next(iter(self.net.parameters())).device)
         self.mask = self._init_mask()
         
@@ -75,10 +75,10 @@ class _Mask():
         is_global = coalesce(is_global, self.is_global)
         if is_global:
             parameters = self.net.filtered_named_parameters(self.effective_params_to_prune)
-            ###
-            parameters = list(parameters)
-            print("filtered parameters\n", parameters)
-            ###
+            # ###
+            # parameters = list(parameters)
+            # print("filtered parameters\n", parameters)
+            # ###
             new_mask = self._criterion(*parameters, pruning_rate=pruning_rate)
         else:
             new_mask = Odict()
@@ -158,16 +158,16 @@ class LMMask(_Mask):
     def _criterion(self, *params, pruning_rate=None) -> Odict:
         pruning_rate = coalesce(pruning_rate, self.p)
         
-        # flattened_abs_params = torch.cat([param[self.mask[name]].abs() for name, param in params])
-        ###
-        print("Mask names:", self.mask.keys())
-        flattened_abs_params = []
-        print("Param names:")
-        for name, param in params:
-            print(name)
-            flattened_abs_params.append(param[self.mask[name]].abs())
-        flattened_abs_params = torch.cat(flattened_abs_params)
-        ###
+        flattened_abs_params = torch.cat([param[self.mask[name]].abs() for name, param in params])
+        # ###
+        # print("Mask names:", self.mask.keys())
+        # flattened_abs_params = []
+        # print("Param names:")
+        # for name, param in params:
+        #     print(name)
+        #     flattened_abs_params.append(param[self.mask[name]].abs())
+        # flattened_abs_params = torch.cat(flattened_abs_params)
+        # ###
         index = int(pruning_rate * flattened_abs_params.numel())
         # if index is 0, the pruning rate is too small to prune anything
         pth_quantile = None
