@@ -74,6 +74,9 @@ class Model(torch.nn.Module):
             self.net.cuda(distributed_device)
             torch.nn.SyncBatchNorm.convert_sync_batchnorm(self.net)
             self.net = torch.nn.parallel.DistributedDataParallel(self.net, device_ids=[distributed_device])
+            
+            for n, p in self.named_parameters():
+                print(n, p.shape)
 
 
     def _get_parameters_names(self):
