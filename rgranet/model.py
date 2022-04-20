@@ -192,8 +192,8 @@ class Model(torch.nn.Module):
             if self.scheduler_update_time == TrainingMilestone.END_EPOCH:
                 self.scheduler.step()
             
-            if checkpoint_path is not None and checkpoint_save_time == TrainingMilestone.END_EPOCH:
-                torch.save(self.checkpoint(epoch, len(trainloader)), checkpoint_path)
+            if self.is_main_device and checkpoint_path is not None and checkpoint_save_time == TrainingMilestone.END_EPOCH:
+                torch.save(self.state_dict(), checkpoint_path)
 
         if final_model_path is not None and self.is_main_device:
             torch.save(self.state_dict(), final_model_path)
@@ -311,13 +311,15 @@ class Model(torch.nn.Module):
 
         return logger.to_dict()
 
-    def state_dict(self):
+    def state_dict(self, epoch=None, ite=None):
         state_dict = {
             "net": self.net.state_dict(),
             "optimizer": self.optimizer.state_dict(),
             "scheduler": self.scheduler.state_dict(),
             "mask": self.mask.state_dict() if self.mask is not None else None,
             "scaler": self.scaler.state_dict(),
+            "epoch": epoch,
+            "ite": ite
         }
         return state_dict
 
