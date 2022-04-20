@@ -243,6 +243,9 @@ class Model(torch.nn.Module):
             
             self.optimizer.zero_grad()
 
+            if i==0:
+                print("Shapes", data.shape, labels.shape)
+
             data, labels = data.to(device, non_blocking=True), labels.to(device, non_blocking=True)
             
             update_mask_this_ite = not burnout
@@ -316,7 +319,10 @@ class Model(torch.nn.Module):
 
         with torch.set_grad_enabled(adversarial_attack is not None):
             logger = DistributedLogger()
-            for data, labels in logger.looper(testloader, header="TEST", print_freq=len(testloader)):
+            for i, (data, labels) in enumerate(logger.looper(testloader, header="TEST", print_freq=len(testloader))):
+                
+                if i==0:
+                    print("EVAL Shapes", data.shape, labels.shape)
 
                 data = data.to(device, non_blocking=True)
                 labels = labels.to(device, non_blocking=True)
