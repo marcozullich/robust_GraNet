@@ -86,6 +86,7 @@ class Model(torch.nn.Module):
         '''
         Returns a generator of tuples of (name, parameter) where the parameters are filtered by the specified names.
         '''
+        print("Net type:", type(self.net))
         for n, p in self.net.named_parameters():
             if any([na in n for na in names]):
                 yield n, p
