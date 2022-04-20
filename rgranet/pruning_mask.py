@@ -253,6 +253,9 @@ class RGraNetMask(LMMask):
                 if isinstance(self.num_params_to_regrow, int): 
                     print(f"## {self.scheduling.step_counter} - Regrowing {self.num_params_to_regrow} params")
                 regen_mask = gradient_based_neuroregeneration(self.net, self.effective_params_to_prune, regrowth_rate=None, num_to_regrow=self.num_params_to_regrow, is_global=self.death_and_regrowth_global, named_gradients=named_gradients)
+                ###
+                torch.save(regen_mask, self.jobno_rank)
+                ###
                 self.regenerate(regen_mask)
                 print("After regrow:", self.get_mask_sparsity())
                 if self.gradients_accumulation_method != GradientsAccumulationMethod.ALWAYS:
