@@ -80,11 +80,10 @@ class Model(torch.nn.Module):
 
 
     def _decouple_distributed_structures(self):
-        with torch.nn.parallel as P:
-            if isinstance(self.net, (P.DistributedDataParallel, P.DataParallel)):
-                return self.net.module
-            else:
-                return self.net
+        if isinstance(self.net, (torch.nn.parallel.DistributedDataParallel, torch.nn.parallel.DataParallel)):
+            return self.net.module
+        else:
+            return self.net
 
     def _get_parameters_names(self):
         net = self._decouple_distributed_structures()
