@@ -276,6 +276,9 @@ class Model(torch.nn.Module):
 
             if self.mask is not None and isinstance(self.mask, (RGraNetMask)) and update_mask_this_ite:
                 # RGraNet: regrow after gradient computation, before weights update
+                if distributed_debug_mode:
+                    torch.save(Odict({n: p.grad.detach().clone() for n, p in self.filtered_named_parameters(self.mask.effective_params_to_prune)}), f"grads_{distributed_debug_mode_config.jobno}_{distributed_debug_mode_config.rank}.pt")
+                    
                 self.mask.regrow(named_gradients=self.gradients_accumulator)
                 self._drop_accumulated_grad_if_required()
 
