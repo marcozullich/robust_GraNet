@@ -146,7 +146,7 @@ def set_up_training(gpu=None, config=None):
         ite_start=ite_start,
         clip_grad_norm_before_epoch=config.train.clip_grad_norm_before_epoch,
         distributed_debug_mode=train_distributed_debug,
-        distributed_debug_config=train_distributed_debug_config
+        distributed_debug_mode_config=train_distributed_debug_config
     )
 
     net.evaluate(
