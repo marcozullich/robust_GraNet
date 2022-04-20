@@ -110,6 +110,7 @@ def setup_distributed_debug_mode_config(config, job_env):
         "jobno": job_env.job_id,
         "rank": job_env.global_rank,
     }
+    jobno_rank = f"{ddm_config['jobno']}_{ddm_config['rank']}"
     config.distributed.debug_config = SimpleNamespace(**ddm_config)
 
 def init_dist_gpu(config):
