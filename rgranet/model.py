@@ -79,15 +79,23 @@ class Model(torch.nn.Module):
                 print(n, p.shape)
 
 
+    def _decouple_distributed_structures(self):
+        with torch.nn.parallel as P:
+            if isinstance(self.net, (P.DistributedDataParallel, P.DataParallel)):
+                return self.net.module
+            else:
+                return self.net
+
     def _get_parameters_names(self):
-        return [n for n, _ in self.net.named_parameters()]
+        net = self._decouple_distributed_structures()
+        return [n for n, _ in net.named_parameters()]
     
     def filtered_named_parameters(self, names):
         '''
         Returns a generator of tuples of (name, parameter) where the parameters are filtered by the specified names.
         '''
-        print("Net type:", type(self.net))
-        for n, p in self.net.named_parameters():
+        net = self._decouple_distributed_structures()
+        for n, p in net.named_parameters():
             if any([na in n for na in names]):
                 yield n, p
 
@@ -177,8 +185,6 @@ class Model(torch.nn.Module):
             clip_grad_norm_before_epoch = num_epochs + burnout_epochs + 1
         
         self._to_device(device)
-
-        # self.net, self.optimizer = amp.initialize(self.net, self.optimizer, **amp_args)
 
         self.net.train()
         
