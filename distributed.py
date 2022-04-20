@@ -118,6 +118,8 @@ def init_dist_gpu(config):
     config.distributed.gpu = job_env.local_rank
     config.distributed.rank = job_env.global_rank
 
+    setup_distributed_debug_mode_config(config, job_env)
+
     dist.init_process_group(backend="gloo", init_method=config.distributed.dist_url, world_size=config.distributed.world_size, rank=config.distributed.rank)
     torch.cuda.set_device(config.distributed.gpu)
     cudnn.benchmark = True
