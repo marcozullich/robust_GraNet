@@ -1,6 +1,7 @@
 import os
 from collections import OrderedDict as Odict
 from enum import Enum
+from types import SimpleNamespace
 from typing import Union
 
 import torch
@@ -161,7 +162,10 @@ class Model(torch.nn.Module):
         ite_start:int=0,
         burnout_epochs:int=0,
         half_precision:bool=False,
+        distributed_debug_mode:bool=False,
+        distributed_debug_mode_config:SimpleNamespace=None,
     ):
+        assert distributed_debug_mode and distributed_debug_mode_config is not None, "distributed_debug_mode_config must be provided if distributed_debug_mode is True"
         if not half_precision:
             self.scaler._enabled = False
         
@@ -186,7 +190,8 @@ class Model(torch.nn.Module):
                 checkpoint_path=checkpoint_save_path_iteration,
                 ite_start=ite_start,
                 burnout=epoch >= num_epochs,
-                epochs=tot_epochs
+                epochs=tot_epochs,
+                distributed_debug_mode=distributed_debug_mode,
             )
 
             if self.scheduler_update_time == TrainingMilestone.END_EPOCH:
@@ -209,7 +214,9 @@ class Model(torch.nn.Module):
         ite_start:int=0,
         burnout:bool=False,
         ite_print:int=None,
-        epochs:int=None
+        epochs:int=None,
+        distributed_debug_mode:bool=False,
+        distributed_debug_mode_config:SimpleNamespace=None,
     ):  
         logger = DistributedLogger()
         device = self._get_device()
@@ -233,6 +240,8 @@ class Model(torch.nn.Module):
                 if isinstance(self.mask, (RGraNetMask, GradualPruningMask)):
                     # RGraNet: prune before weights update and gradient computation
                     self.mask.prune()
+                if distributed_debug_mode:
+                    torch.save(self.mask.state_dict(), f"mask_state_dict_{distributed_debug_mode_config.jobno}_{distributed_debug_mode_config.rank}.pt")
 
             with torch.cuda.amp.autocast(True):
                 preds = self.net(data)

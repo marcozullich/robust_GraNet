@@ -1,3 +1,4 @@
+from types import SimpleNamespace
 from setuptools import setup
 import submitit
 import os
@@ -103,6 +104,13 @@ def setup_for_distributed(is_master):
             builtin_print(*args, **kwargs)
 
     __builtin__.print = print
+
+def setup_distributed_debug_mode_config(config, job_env):
+    ddm_config = {
+        "jobno": job_env.job_id,
+        "rank": job_env.global_rank,
+    }
+    config.distributed.debug_config = SimpleNamespace(**ddm_config)
 
 def init_dist_gpu(config):
     job_env = submitit.JobEnvironment()

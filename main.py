@@ -129,6 +129,11 @@ def set_up_training(gpu=None, config=None):
             epoch_start, ite_start = net.load_checkpoint(torch.load(check_path))
             epoch_start, ite_start = determine_epoch_and_ite_start(epoch_start, ite_start, config.train.epochs + config.train.burnout_epochs, len(trainloader))
 
+    train_distributed_debug = False
+    train_distributed_debug_config = None
+    if is_distributed and hasattr(config.distributed, "debug"):
+        train_distributed_debug = config.distributed.debug
+        train_distributed_debug_config = config.distributed.debug_config
 
     net.train_model(
         trainloader=trainloader,
@@ -140,6 +145,8 @@ def set_up_training(gpu=None, config=None):
         epoch_start=epoch_start,
         ite_start=ite_start,
         clip_grad_norm_before_epoch=config.train.clip_grad_norm_before_epoch,
+        distributed_debug_mode=train_distributed_debug,
+        distributed_debug_config=train_distributed_debug_config
     )
 
     net.evaluate(
