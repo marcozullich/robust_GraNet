@@ -135,15 +135,15 @@ def update_batch_parameters_for_distributed(config):
     tot_gpus = config.distributed.ngpus * config.distributed.nnodes
 
     assert (bsize_train:=config.data.hyperparameters.batch_train) % tot_gpus == 0, f"Batch size for training ({bsize_train}) must be divisible by {tot_gpus} for distributed training."
-    config.data.hyperparameters.batch_train /= tot_gpus
+    config.data.hyperparameters.batch_train //= tot_gpus
 
     if hasattr(config.data.hyperparameters, "batch_test"):
         assert (bsize_test:=config.data.hyperparameters.batch_test) % tot_gpus == 0, f"Batch size for testing ({bsize_test}) must be divisible by {tot_gpus} for distributed training."
-        config.data.hyperparameters.batch_test /= tot_gpus
+        config.data.hyperparameters.batch_test //= tot_gpus
 
     if hasattr(config.data.hyperparameters, "batch_valid"):
         assert (bsize_valid:=config.data.hyperparameters.batch_valid) % tot_gpus == 0, f"Batch size for validation ({bsize_valid}) must be divisible by {tot_gpus} for distributed training."
-        config.data.hyperparameters.batch_valid /= tot_gpus
+        config.data.hyperparameters.batch_valid //= tot_gpus
 
     
 
