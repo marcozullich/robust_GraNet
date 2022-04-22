@@ -133,7 +133,8 @@ def set_up_training(gpu=None, config=None):
     train_distributed_debug_config = None
     if is_distributed and hasattr(config.distributed, "debug"):
         train_distributed_debug = config.distributed.debug
-        train_distributed_debug_config = config.distributed.debug_config
+        if hasattr(config.distributed, "debug_config"):
+            train_distributed_debug_config = config.distributed.debug_config
 
     net.train_model(
         trainloader=trainloader,

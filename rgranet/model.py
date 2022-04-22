@@ -176,7 +176,8 @@ class Model(torch.nn.Module):
         distributed_debug_mode:bool=False,
         distributed_debug_mode_config:SimpleNamespace=None,
     ):
-        assert distributed_debug_mode and distributed_debug_mode_config is not None, "distributed_debug_mode_config must be provided if distributed_debug_mode is True"
+        if distributed_debug_mode:
+            assert distributed_debug_mode_config is not None, "distributed_debug_mode_config must be provided if distributed_debug_mode is True"
         if not half_precision:
             self.scaler._enabled = False
         
