@@ -27,11 +27,17 @@ class SLURM_Trainer():
 def handle_slurm(config):
     executor = submitit.AutoExecutor(folder=config.distributed.logs_folder, slurm_max_num_timeout=config.distributed.max_num_timeout)
 
+    if (not hasattr(config.distributed, "mem_gb")) or config.distributed.mem_gb is None:
+        config.distributed.mem_gb = 12*config.distributed.ngpus
+    
+    if (not hasattr(config.distributed, "cpus_per_task")) or config.distributed.cpus_per_task is None:
+        config.distributed.cpus_per_task = 2
+
     executor.update_parameters(
-        mem_gb=12*config.distributed.ngpus,
+        mem_gb=config.distributed.mem_gb,
         gpus_per_node=config.distributed.ngpus,
         tasks_per_node=config.distributed.ngpus,
-        cpus_per_task=2,
+        cpus_per_task=config.distributed.cpus_per_task,
         nodes=config.distributed.nnodes,
         timeout_min=5,
         slurm_partition=config.distributed.partition
