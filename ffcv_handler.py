@@ -84,3 +84,6 @@ def create_val_loader(val_dataset, num_workers, batch_size,
                         },
                         distributed=distributed)
         return loader
+
+def preprocess_ffcv_model(model):
+    model.to(memory_format=ch.channels_last)

@@ -33,13 +33,13 @@ def get_config():
     return parse_config.parse_config(args.config_path)
 
 def get_ffcv_loaders(config):
-    import ffcv_data
-    trainloader = ffcv_data.create_train_loader(**vars(config.data.hyperparameters.train))
-    testloader = ffcv_data.create_val_loader(**vars(config.data.hyperparameters.test))
+    import ffcv_handler
+    trainloader = ffcv_handler.create_train_loader(**vars(config.data.hyperparameters.train))
+    testloader = ffcv_handler.create_val_loader(**vars(config.data.hyperparameters.test))
     return trainloader, testloader
 
-def get_data(config):
-    if hasattr(config.data, "use_ffcv_loaders") and config.data.use_ffcv_loaders:
+def get_data(config, use_ffcv):
+    if use_ffcv:
         get_ffcv_loaders(config)
     else:
         is_distributed = hasattr(config, "distributed") and config.distributed is not None
@@ -69,6 +69,8 @@ def set_up_training(gpu=None, config=None):
     if config is None:
         config = get_config()
 
+    use_ffcv = hasattr(config.data, "use_ffcv") and config.data.use_ffcv
+
     is_distributed = hasattr(config, "distributed") and config.distributed is not None
 
     if is_distributed:
@@ -79,7 +81,7 @@ def set_up_training(gpu=None, config=None):
 
     print(f"save file {config.train.final_model_save_path}")
 
-    trainloader, testloader = get_data(config)
+    trainloader, testloader = get_data(config, use_ffcv)
 
     if hasattr(config, "global_seed"):
         set_seeds(config.global_seed)
@@ -91,8 +93,12 @@ def set_up_training(gpu=None, config=None):
         cyc.determine_base_lr(config)
         cyc.cyclical_lr_determine_total_steps(config, config.train.epochs, len(trainloader))
 
+    
     net_hyperparamters = vars(config.net_hyperparameters) if hasattr(config, "net_hyperparameters") else {}
     net_module = get_model(config.net, num_classes=NUM_CLASSES[config.data.name], **net_hyperparamters)
+    if use_ffcv:
+        import ffcv_handler
+        ffcv_handler.preprocess_ffcv_model(model)
 
     make_subdirectory(config.train.checkpoint_path)
     make_subdirectory(config.train.final_model_save_path)
