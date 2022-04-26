@@ -74,10 +74,8 @@ class Model(torch.nn.Module):
             self.net.cuda(distributed_device)
             torch.nn.SyncBatchNorm.convert_sync_batchnorm(self.net)
             self.net = torch.nn.parallel.DistributedDataParallel(self.net, device_ids=[distributed_device])
-            
-            for n, p in self.named_parameters():
-                print(n, p.shape)
-
+        elif torch.cuda.device_count() > 1:
+            self.net = torch.nn.DataParallel(self.net, device_ids=list(range(torch.cuda.device_count())))
 
     def _decouple_distributed_structures(self):
         if isinstance(self.net, (torch.nn.parallel.DistributedDataParallel, torch.nn.parallel.DataParallel)):
@@ -156,7 +154,7 @@ class Model(torch.nn.Module):
         '''
         Sends the model to the desired device if not training in a distributed fashion; otherwise, does nothing.
         '''
-        if self.distributed_device is None:
+        if self.distributed_device is None and (not isinstance(self, torch.nn.parallel.DataParallel)):
             device = coalesce(device, use_gpu_if_available())
             self.net.to(device)
     
