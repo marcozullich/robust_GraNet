@@ -15,7 +15,6 @@ from rgranet.data import NUM_CLASSES, get_dataloaders
 from rgranet.architectures import get_model
 
 
-
 def determine_epoch_and_ite_start(epoch_start_from_checkpoint, ite_start_from_checkpoint, num_epochs, num_ite):
     if epoch_start_from_checkpoint == num_epochs - 1 and ite_start_from_checkpoint == num_ite - 1:
         raise ValueError("The loaded checkpoint refers to a completed training.")
@@ -33,14 +32,23 @@ def get_config():
     args = parser.parse_args()
     return parse_config.parse_config(args.config_path)
 
-def get_data(config):
-    is_distributed = hasattr(config, "distributed") and config.distributed is not None
-    world_size = rank = None
-    if is_distributed:
-        world_size = config.distributed.world_size
-        rank = config.distributed.rank
+def get_ffcv_loaders(config):
+    import ffcv_data
+    trainloader = ffcv_data.create_train_loader(**vars(config.data.hyperparameters.train))
+    testloader = ffcv_data.create_val_loader(**vars(config.data.hyperparameters.test))
+    return trainloader, testloader
 
-    trainloader, testloader, _ = get_dataloaders(config.data.name, **vars(config.data.hyperparameters), distributed=is_distributed, distributed_world_size=world_size, distributed_rank=rank)
+def get_data(config):
+    if hasattr(config.data, "use_ffcv_loaders") and config.data.use_ffcv_loaders:
+        get_ffcv_loaders(config)
+    else:
+        is_distributed = hasattr(config, "distributed") and config.distributed is not None
+        world_size = rank = None
+        if is_distributed:
+            world_size = config.distributed.world_size
+            rank = config.distributed.rank
+
+        trainloader, testloader, _ = get_dataloaders(config.data.name, **vars(config.data.hyperparameters), distributed=is_distributed, distributed_world_size=world_size, distributed_rank=rank)
 
     return trainloader, testloader
 
