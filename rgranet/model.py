@@ -154,7 +154,7 @@ class Model(torch.nn.Module):
         '''
         Sends the model to the desired device if not training in a distributed fashion; otherwise, does nothing.
         '''
-        if self.distributed_device is None and (not isinstance(self, torch.nn.parallel.DataParallel)):
+        if self.distributed_device is None:
             device = coalesce(device, use_gpu_if_available())
             self.net.to(device)
     
