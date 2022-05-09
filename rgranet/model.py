@@ -140,11 +140,11 @@ class Model(torch.nn.Module):
         '''
         torch.nn.utils.clip_grad_norm_(self.net.parameters(), norm)
 
-    def _get_device(self):
+    def _get_device(self, device):
         '''
         Used to inspect the device of the model in case of distributed training.
         '''
-        if self.distributed_device is None:
+        if self.distributed_device is None and device is None:
             device = next(iter(self.parameters())).device
         else:
             device = self.distributed_device
@@ -234,7 +234,7 @@ class Model(torch.nn.Module):
     ):  
         # print(f"Epoch {epoch+1} started")
         logger = DistributedLogger()
-        device = self._get_device()
+        device = self._get_device(device)
 
         if ite_print is None:
             ite_print = len(trainloader)
@@ -324,7 +324,7 @@ class Model(torch.nn.Module):
     def evaluate(self, testloader:torch.utils.data.DataLoader,  eval_loss=True, adversarial_attack=None, device=None):
         self.eval()
 
-        # device = self._get_device() if device is None
+        device = self._get_device(device)
         self._to_device(device)
         print(device)
 
