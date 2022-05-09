@@ -324,9 +324,8 @@ class Model(torch.nn.Module):
     def evaluate(self, testloader:torch.utils.data.DataLoader,  eval_loss=True, adversarial_attack=None, device=None):
         self.eval()
 
-        device = self._get_device(device)
+        device = use_gpu_if_available()
         self._to_device(device)
-        device = self._get_device(device)
 
         with torch.set_grad_enabled(adversarial_attack is not None):
             logger = DistributedLogger()
