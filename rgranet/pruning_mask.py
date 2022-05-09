@@ -1,7 +1,9 @@
+from curses import raw
 from typing import Collection, List, Union
 from collections import OrderedDict as Odict
 import torch
 from enum import Enum
+import math
 
 from . import pruning_rate_schedule as schedule
 from .utils import coalesce
@@ -23,6 +25,8 @@ class _Mask():
         scheduling_kwargs:dict=None,
         is_global:bool=True,
         device:Union[str, torch.device]=None,
+        initial_density:float=1.0,
+        sparse_power_scale:float=1.0,
     ):
         # scheduling_kwargs = coalesce(scheduling_kwargs, {"initial_pruning_rate": init_pruning_rate})
         # scheduling_kwargs["pruning_frequency"] = pruning_frequency
@@ -46,14 +50,54 @@ class _Mask():
         # print("Effective params to prune", self.effective_params_to_prune)
         # ###
         self.device = coalesce(device, next(iter(self.net.parameters())).device)
-        self.mask = self._init_mask()
+        self.initial_density = initial_density
+        self.mask = self._init_mask(sparse_density=self.initial_density, sparse_power_scale=sparse_power_scale)
+        self.apply()
         
 
-    def _init_mask(self):
+    def _init_mask(self, sparse_density:float=1.0, sparse_power_scale=1.0):
         mask = Odict()
         for (name, param) in self.net.filtered_named_parameters(self.effective_params_to_prune):
             mask[name] = torch.ones_like(param).bool().to(self.device)
+        if sparse_density < 1.0:
+            self.sparse_init(power_scale=sparse_power_scale, density_0=sparse_density, dense_mask=mask)
         return mask
+
+    def sparse_init(self, power_scale:float, density_0:float, dense_mask):
+        assert density_0 > 0.0 and density_0 <= 1.0, f"density_0 must be between 0 and 1, got {density_0}"
+        dense_layers = set()
+        max_weighted_probability = math.inf
+
+        while max_weighted_probability > 1.0:
+            divisor = 0
+            rhs = 0
+            raw_probabilities = Odict()
+
+            for name, mask in dense_mask.items():
+                if name in dense_layers:
+                    rhs -= mask.numel() * (1 - density_0)
+                else:
+                    rhs += mask.numel() * density_0
+                    raw_probabilities[name] = (sum(mask.shape) / mask.numel()) ** power_scale
+                    divisor += raw_probabilities[name] * mask.numel()
+            
+            eps = rhs / divisor
+            max_probability, max_probability_idx = torch.Tensor(list(raw_probabilities.values())).topk(1)
+            max_weighted_probability = (max_probability * eps).item()
+
+            if max_weighted_probability > 1.0:
+                dense_layers.add(list(raw_probabilities.keys())[max_probability_idx[0].item()])
+
+        for name, mask in dense_mask.items():
+            if name not in dense_layers:
+                dense_mask[name] = torch.rand(mask.shape) < raw_probabilities[name] * eps
+
+                        
+
+
+
+
+
 
     def apply(self):
         for (_, param), (_, msk) in zip(self.net.filtered_named_parameters(self.effective_params_to_prune), self.mask.items()):
@@ -204,6 +248,7 @@ class RGraNetMask(LMMask):
             net=net,
             params_to_prune=params_to_prune,
             pruning_rate_schedule=schedule.PruningRateCubicSchedulingWithFixedRegrowth,
+            initial_density=(1-initial_sparsity),
             scheduling_kwargs={
                 "initial_sparsity": initial_sparsity,
                 "final_sparsity": final_sparsity,
@@ -252,7 +297,7 @@ class RGraNetMask(LMMask):
             if self.scheduling.can_regrow and regrow_num_positive:
                 if isinstance(self.num_params_to_regrow, int): 
                     print(f"## {self.scheduling.step_counter} - Regrowing {self.num_params_to_regrow} params")
-                regen_mask = gradient_based_neuroregeneration(self.net, self.effective_params_to_prune, regrowth_rate=None, num_to_regrow=self.num_params_to_regrow, is_global=self.death_and_regrowth_global, named_gradients=named_gradients)
+                regen_mask = gradient_based_neuroregeneration(self.net, self.effective_params_to_prune, regrowth_rate=None, num_to_regrow=self.num_params_to_regrow, is_global=self.death_and_regrowth_global, named_gradients=named_gradients, mask=self)
                 
                 self.regenerate(regen_mask)
                 print("After regrow:", self.get_mask_sparsity())

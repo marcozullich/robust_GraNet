@@ -45,7 +45,8 @@ def gradient_based_neuroregeneration(
 
 
     named_gradients = validate_parse_gradients_and_net(named_gradients, net, params_to_prune)
-    mask = coalesce(mask, net.mask)
+    if hasattr(net, "mask"):
+        mask = coalesce(mask, net.mask)
     device = coalesce(device, mask.device)
     if is_global:
         regenerated_params = _neuroregenerate_params(mask, regrowth_rate, *named_gradients, device=device, num_to_regrow=num_to_regrow)
