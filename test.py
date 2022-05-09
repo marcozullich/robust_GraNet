@@ -45,8 +45,12 @@ def main():
 
     params = torch.load(config.eval.params_path)
     net.load_trained_model(params)
+    print("Loaded train model")
 
     net.evaluate(
         testloader=testloader,
         eval_loss=True
     )
+
+if __name__ == "__main__":
+    main()
