@@ -370,5 +370,10 @@ class Model(torch.nn.Module):
         self.scaler.load_state_dict(state_dict["scaler"])
         if (mask_state_dict:=state_dict["mask"]) is not None:
             self.mask.load_state_dict(mask_state_dict)
+    
+    def load_trained_model(self, state_dict: dict):
+        self.net.load_state_dict(state_dict["net"])
+        if (mask_state_dict:=state_dict["mask"]) is not None:
+            self.mask.load_mask(state_dict["mask"], apply=True)
 
 

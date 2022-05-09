@@ -197,6 +197,15 @@ class _Mask():
     def load_state_dict(self, state_dict, ):
         self.mask = state_dict["mask"]
         self.scheduling.load_state_dict(state_dict["scheduling"])
+    
+    def load_mask(self, mask_dict, apply=True):
+        self.mask = mask_dict["mask"]
+        print("Loaded mask", end=" ")
+        if apply:
+            self.apply()
+            print("and applied to model.")
+        else:
+            print("")
         
 class LMMask(_Mask):
     def _criterion(self, *params, pruning_rate=None) -> Odict:
