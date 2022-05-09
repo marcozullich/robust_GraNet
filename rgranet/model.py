@@ -342,6 +342,7 @@ class Model(torch.nn.Module):
 
                 torch.cuda.synchronize()
 
+                print(preds.device, labels.device)
                 if eval_loss:
                     logger.update(loss=self.loss_fn(preds, labels).item())
                 logger.update(accuracy=acc_fn(preds, labels))
