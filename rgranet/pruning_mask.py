@@ -52,6 +52,7 @@ class _Mask():
         self.device = coalesce(device, next(iter(self.net.parameters())).device)
         self.initial_density = initial_density
         self.mask = self._init_mask(sparse_density=self.initial_density, sparse_power_scale=sparse_power_scale)
+        self.apply()
         
 
     def _init_mask(self, sparse_density:float=1.0, sparse_power_scale=1.0):
@@ -64,7 +65,7 @@ class _Mask():
 
     def sparse_init(self, power_scale:float, density_0:float, dense_mask):
         assert density_0 > 0.0 and density_0 <= 1.0, f"density_0 must be between 0 and 1, got {density_0}"
-        dense_layers = {}
+        dense_layers = set()
         max_weighted_probability = math.inf
 
         while max_weighted_probability > 1.0:
@@ -82,14 +83,14 @@ class _Mask():
             
             eps = rhs / divisor
             max_probability, max_probability_idx = torch.Tensor(list(raw_probabilities.values())).topk(1)
-            max_weighted_probability = max_probability * eps
+            max_weighted_probability = (max_probability * eps).item()
 
             if max_weighted_probability > 1.0:
-                dense_layers.add(raw_probabilities.keys()[max_probability_idx[0].item()])
+                dense_layers.add(list(raw_probabilities.keys())[max_probability_idx[0].item()])
 
         for name, mask in dense_mask.items():
             if name not in dense_layers:
-                dense_mask[name] = torch.rand_like(mask) < raw_probabilities[name] * eps
+                dense_mask[name] = torch.rand(mask.shape) < raw_probabilities[name] * eps
 
                         
 
@@ -247,6 +248,7 @@ class RGraNetMask(LMMask):
             net=net,
             params_to_prune=params_to_prune,
             pruning_rate_schedule=schedule.PruningRateCubicSchedulingWithFixedRegrowth,
+            initial_density=(1-initial_sparsity),
             scheduling_kwargs={
                 "initial_sparsity": initial_sparsity,
                 "final_sparsity": final_sparsity,
