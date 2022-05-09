@@ -26,7 +26,7 @@ def main():
         mask_kwargs.pruning_rate_schedule = pr_sched_class
         if (pr_sched_hyp:=pr_sched_class.get("hyperparameters")) is not None:
             mask_kwargs.scheduling_kwargs = pr_sched_hyp
-            mask_kwargs.scheduling_kwargs.tot_num_pruning_ite = 1
+    mask_kwargs["tot_num_pruning_ite"] = 1
 
     net = model.Model(
         module=net_module,
