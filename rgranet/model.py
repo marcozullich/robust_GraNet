@@ -353,7 +353,7 @@ class Model(torch.nn.Module):
 
     def state_dict(self, epoch=None, ite=None):
         state_dict = {
-            "net": self.net.state_dict(),
+            "net": self._decouple_distributed_structures().state_dict(),
             "optimizer": self.optimizer.state_dict(),
             "scheduler": self.scheduler.state_dict(),
             "mask": self.mask.state_dict() if self.mask is not None else None,
@@ -364,7 +364,8 @@ class Model(torch.nn.Module):
         return state_dict
 
     def load_state_dict(self, state_dict: dict):
-        self.net.load_state_dict(state_dict["net"])
+
+        self._decouple_distributed_structures().load_state_dict(state_dict["net"])
         self.optimizer.load_state_dict(state_dict["optimizer"])
         self.scheduler.load_state_dict(state_dict["scheduler"])
         self.scaler.load_state_dict(state_dict["scaler"])
@@ -372,7 +373,7 @@ class Model(torch.nn.Module):
             self.mask.load_state_dict(mask_state_dict)
     
     def load_trained_model(self, state_dict: dict):
-        self.net.load_state_dict(state_dict["net"])
+        self._decouple_distributed_structures().load_state_dict(state_dict["net"])
         if (mask_state_dict:=state_dict["mask"]) is not None:
             self.mask.load_mask(state_dict["mask"], apply=True)
 
