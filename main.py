@@ -15,7 +15,6 @@ from rgranet.data import NUM_CLASSES, get_dataloaders
 from rgranet.architectures import get_model
 
 
-
 def determine_epoch_and_ite_start(epoch_start_from_checkpoint, ite_start_from_checkpoint, num_epochs, num_ite):
     if epoch_start_from_checkpoint == num_epochs - 1 and ite_start_from_checkpoint == num_ite - 1:
         raise ValueError("The loaded checkpoint refers to a completed training.")
@@ -33,14 +32,23 @@ def get_config():
     args = parser.parse_args()
     return parse_config.parse_config(args.config_path)
 
-def get_data(config):
-    is_distributed = hasattr(config, "distributed") and config.distributed is not None
-    world_size = rank = None
-    if is_distributed:
-        world_size = config.distributed.world_size
-        rank = config.distributed.rank
+def get_ffcv_loaders(config):
+    import ffcv_handler
+    trainloader = ffcv_handler.create_train_loader(**vars(config.data.hyperparameters.train))
+    testloader = ffcv_handler.create_val_loader(**vars(config.data.hyperparameters.test))
+    return trainloader, testloader
 
-    trainloader, testloader, _ = get_dataloaders(config.data.name, **vars(config.data.hyperparameters), distributed=is_distributed, distributed_world_size=world_size, distributed_rank=rank)
+def get_data(config, use_ffcv):
+    if use_ffcv:
+        get_ffcv_loaders(config)
+    else:
+        is_distributed = hasattr(config, "distributed") and config.distributed is not None
+        world_size = rank = None
+        if is_distributed:
+            world_size = config.distributed.world_size
+            rank = config.distributed.rank
+
+        trainloader, testloader, _ = get_dataloaders(config.data.name, **vars(config.data.hyperparameters), distributed=is_distributed, distributed_world_size=world_size, distributed_rank=rank)
 
     return trainloader, testloader
 
@@ -61,6 +69,8 @@ def set_up_training(gpu=None, config=None):
     if config is None:
         config = get_config()
 
+    use_ffcv = hasattr(config.data, "use_ffcv") and config.data.use_ffcv
+
     is_distributed = hasattr(config, "distributed") and config.distributed is not None
 
     if is_distributed:
@@ -71,7 +81,7 @@ def set_up_training(gpu=None, config=None):
 
     print(f"save file {config.train.final_model_save_path}")
 
-    trainloader, testloader = get_data(config)
+    trainloader, testloader = get_data(config, use_ffcv)
 
     if hasattr(config, "global_seed"):
         set_seeds(config.global_seed)
@@ -83,8 +93,12 @@ def set_up_training(gpu=None, config=None):
         cyc.determine_base_lr(config)
         cyc.cyclical_lr_determine_total_steps(config, config.train.epochs, len(trainloader))
 
+    
     net_hyperparamters = vars(config.net_hyperparameters) if hasattr(config, "net_hyperparameters") else {}
     net_module = get_model(config.net, num_classes=NUM_CLASSES[config.data.name], **net_hyperparamters)
+    if use_ffcv:
+        import ffcv_handler
+        ffcv_handler.preprocess_ffcv_model(model)
 
     make_subdirectory(config.train.checkpoint_path)
     make_subdirectory(config.train.final_model_save_path)
