@@ -34,13 +34,14 @@ def get_config():
 
 def get_ffcv_loaders(config):
     import ffcv_handler
-    trainloader = ffcv_handler.create_train_loader(**vars(config.data.hyperparameters.train))
-    testloader = ffcv_handler.create_val_loader(**vars(config.data.hyperparameters.test))
+    data_args_train, data_args_test = ffcv_handler.preprocess_ffcv_args(config.data.hyperparameters)
+    trainloader = ffcv_handler.create_train_loader(**vars(data_args_train))
+    testloader = ffcv_handler.create_val_loader(**vars(data_args_test))
     return trainloader, testloader
 
 def get_data(config, use_ffcv):
     if use_ffcv:
-        get_ffcv_loaders(config)
+        trainloader, testloader = get_ffcv_loaders(config)
     else:
         is_distributed = hasattr(config, "distributed") and config.distributed is not None
         world_size = rank = None
@@ -94,11 +95,17 @@ def set_up_training(gpu=None, config=None):
         cyc.cyclical_lr_determine_total_steps(config, config.train.epochs, len(trainloader))
 
     
-    net_hyperparamters = vars(config.net_hyperparameters) if hasattr(config, "net_hyperparameters") else {}
-    net_module = get_model(config.net, num_classes=NUM_CLASSES[config.data.name], **net_hyperparamters)
+    net_hyperparameters = vars(config.net_hyperparameters) if hasattr(config, "net_hyperparameters") else {}
+
+    use_blurpool = False
+    if net_hyperparameters.get("use_blurpool") is not None:
+        use_blurpool = net_hyperparameters.pop("use_blurpool")
+    
+    net_module = get_model(config.net, num_classes=NUM_CLASSES[config.data.name], **net_hyperparameters)
     if use_ffcv:
         import ffcv_handler
-        ffcv_handler.preprocess_ffcv_model(model)
+        net_module = ffcv_handler.preprocess_ffcv_model(net_module, use_blurpool=use_blurpool)
+        print("net_module\n", net_module)
 
     make_subdirectory(config.train.checkpoint_path)
     make_subdirectory(config.train.final_model_save_path)
@@ -161,7 +168,8 @@ def set_up_training(gpu=None, config=None):
         ite_start=ite_start,
         clip_grad_norm_before_epoch=config.train.clip_grad_norm_before_epoch,
         distributed_debug_mode=train_distributed_debug,
-        distributed_debug_mode_config=train_distributed_debug_config
+        distributed_debug_mode_config=train_distributed_debug_config,
+        ite_print=config.train.ite_print
     )
 
     net.evaluate(

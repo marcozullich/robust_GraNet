@@ -5,7 +5,7 @@ from types import SimpleNamespace
 from typing import Union
 
 import torch
-from apex import amp
+# from apex import amp
 
 from .model_logger import DistributedLogger, Milestone
 from .pruning_mask import GradientsAccumulationMethod, GradualPruningMask, GraNetMask, LMMask, NoMask, RGraNetMask, _Mask
@@ -173,12 +173,14 @@ class Model(torch.nn.Module):
         half_precision:bool=False,
         distributed_debug_mode:bool=False,
         distributed_debug_mode_config:SimpleNamespace=None,
+        ite_print:int=None
     ):
         if distributed_debug_mode:
             assert distributed_debug_mode_config is not None, "distributed_debug_mode_config must be provided if distributed_debug_mode is True"
         if not half_precision:
             self.scaler._enabled = False
         
+        print("Starting training...")
         
 
         if clip_grad_norm_before_epoch is None:
@@ -191,7 +193,7 @@ class Model(torch.nn.Module):
         checkpoint_save_path_iteration = checkpoint_path if checkpoint_save_time == TrainingMilestone.END_ITERATION else None
 
         for epoch in range(epoch_start, tot_epochs := num_epochs + burnout_epochs):
-            if hasattr(trainloader.sampler, "set_epoch"):
+            if hasattr(trainloader, "sampler") and hasattr(trainloader.sampler, "set_epoch"):
                 trainloader.sampler.set_epoch(epoch)
             self.train_epoch(
                 epoch=epoch,
@@ -203,6 +205,7 @@ class Model(torch.nn.Module):
                 epochs=tot_epochs,
                 distributed_debug_mode=distributed_debug_mode,
                 distributed_debug_mode_config=distributed_debug_mode_config,
+                ite_print=ite_print,
             )
 
             if self.scheduler_update_time == TrainingMilestone.END_EPOCH:
@@ -229,6 +232,7 @@ class Model(torch.nn.Module):
         distributed_debug_mode:bool=False,
         distributed_debug_mode_config:SimpleNamespace=None,
     ):  
+        # print(f"Epoch {epoch+1} started")
         logger = DistributedLogger()
         device = self._get_device()
 
@@ -236,16 +240,21 @@ class Model(torch.nn.Module):
             ite_print = len(trainloader)
         logger_header = f"{epoch+1}/{epochs}"
 
+        # print("Fetching data")
         for i, (data, labels) in enumerate(logger.looper(trainloader, print_freq=ite_print, header=logger_header)):
+            # print("Data fetched")
             if i < ite_start:
                 continue
             
+            # print("Zeroed optimizer")
             self.optimizer.zero_grad()
 
-            if i==0:
-                print("Shapes", data.shape, labels.shape)
+            # if i==0:
+            #     print("Shapes", data.shape, labels.shape)
 
+            # print("Moving data to device")
             data, labels = data.to(device, non_blocking=True), labels.to(device, non_blocking=True)
+            # print("Moved data to device")
             
             update_mask_this_ite = not burnout
 
@@ -258,7 +267,9 @@ class Model(torch.nn.Module):
                     torch.save(self.mask.state_dict(), f"mask_state_dict_{distributed_debug_mode_config.jobno}_{distributed_debug_mode_config.rank}_{i}.pt")
 
             with torch.cuda.amp.autocast(True):
+                # print("Forward pass")
                 preds = self.net(data)
+                # print("Loss calculation")
                 loss = self.loss_fn(preds, labels)
 
             self.scaler.scale(loss).backward()

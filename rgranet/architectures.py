@@ -13,7 +13,7 @@ def get_model(name, num_classes, **kwargs):
     }
     if NET_PARSER.get(name) is not None:
         return NET_PARSER[name](num_classes=num_classes, **kwargs)
-    kwargs.pretrained = coalesce(kwargs.pretrained, False)
+    kwargs["pretrained"] = coalesce(kwargs.get("pretrained"), False)
     return timm.create_model(name, num_classes=num_classes, **kwargs)
 
 class FCN4(nn.Module):

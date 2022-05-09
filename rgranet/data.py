@@ -1,6 +1,7 @@
 from enum import Enum
 from pathlib import Path
 from typing import Union
+import os
 
 import torch
 from torchvision import datasets as D
@@ -59,15 +60,19 @@ def get_transforms(transform_type: TransformType, dataset: SupportedDataset):
     elif dataset == SupportedDataset.IMAGENET:
         bare_minimum = T.Compose([
             T.ToTensor(),
-            T.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
+            T.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
         ])
         if transform_type.BARE_MINIMUM:
-            return bare_minimum
+            return T.Compose([
+                T.CenterCrop(224),
+                *bare_minimum.transforms,
+            ])
         if transform_type.BASIC:
             return T.Compose([
-                *bare_minimum.transforms,
+                T.RandomResizedCrop(224),
                 T.RandomHorizontalFlip(),
-                T.RandomCrop(224, 4)
+                *bare_minimum.transforms,
+                
             ])
     elif dataset == SupportedDataset.IMAGEDATASET:
         return T.Compose([
@@ -99,7 +104,8 @@ def get_dataset(dataset:SupportedDataset, root:Union[str,Path], train:bool, tran
     elif dataset == SupportedDataset.MNIST:
         return D.MNIST(root, train, transform, target_transform, download=True)
     elif dataset == SupportedDataset.IMAGENET:
-        return D.ImageNet(root, split="train" if train else "val", transform=transform, target_transform=target_transform, download=False)
+        split = "train" if train else "val"
+        return D.ImageFolder(os.path.join(root, split), transform=transform, target_transform=target_transform)
     elif dataset == SupportedDataset.IMAGEDATASET:
         return D.ImageFolder(root, transform=transform, target_transform=target_transform)
     raise ValueError(f"Unsupported dataset type {dataset}")

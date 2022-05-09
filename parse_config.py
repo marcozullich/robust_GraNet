@@ -164,7 +164,8 @@ def parse_config(config_path):
     parse_pr_scheduler(config)
     parse_seed(config)
     config_savefile(config)
-    config.data.hyperparameters.dataset_root = parse_path(config.data.hyperparameters.dataset_root)
+    if hasattr(config.data.hyperparameters, "dataset_root"):
+        config.data.hyperparameters.dataset_root = parse_path(config.data.hyperparameters.dataset_root)
     
 
         

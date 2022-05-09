@@ -98,6 +98,29 @@ def create_val_loader(val_dataset, num_workers, batch_size,
                         distributed=distributed)
         return loader
 
+def preprocess_ffcv_args(args):
+    if not hasattr(args, "resolution_train"):
+        args.resolution_train = args.resolution
+    train_args = SimpleNamespace(
+        train_dataset=args.train_dataset,
+        num_workers=args.num_workers,
+        batch_size=args.batch_size_train,
+        distributed=args.distributed,
+        in_memory=args.in_memory,
+        resolution=args.resolution_train
+    )
+
+    if not hasattr(args, "resolution_test"):
+        args.resolution_test = args.resolution_train
+    test_args = SimpleNamespace(
+        val_dataset=args.val_dataset,
+        num_workers=args.num_workers,
+        batch_size=args.batch_size_test,
+        resolution=args.resolution_test,
+        distributed=args.distributed
+    )
+    return train_args, test_args
+
 def preprocess_ffcv_model(model, use_blurpool):
     if use_blurpool:
         def apply_blurpool(mod: ch.nn.Module):
@@ -107,4 +130,5 @@ def preprocess_ffcv_model(model, use_blurpool):
                 else: 
                     apply_blurpool(child)
         apply_blurpool(model)
-    model.to(memory_format=ch.channels_last)
+    model = model.to(memory_format=ch.channels_last)
+    return model
