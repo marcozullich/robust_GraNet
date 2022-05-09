@@ -326,7 +326,7 @@ class Model(torch.nn.Module):
 
         device = self._get_device(device)
         self._to_device(device)
-        print(device)
+        device = self._get_device(device)
 
         with torch.set_grad_enabled(adversarial_attack is not None):
             logger = DistributedLogger()
