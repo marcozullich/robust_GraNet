@@ -173,7 +173,7 @@ class Model(torch.nn.Module):
         half_precision:bool=False,
         distributed_debug_mode:bool=False,
         distributed_debug_mode_config:SimpleNamespace=None,
-        ite_print:int=None
+        ite_print:int=None,
     ):
         if distributed_debug_mode:
             assert distributed_debug_mode_config is not None, "distributed_debug_mode_config must be provided if distributed_debug_mode is True"
@@ -206,6 +206,7 @@ class Model(torch.nn.Module):
                 distributed_debug_mode=distributed_debug_mode,
                 distributed_debug_mode_config=distributed_debug_mode_config,
                 ite_print=ite_print,
+                device=device
             )
 
             if self.scheduler_update_time == TrainingMilestone.END_EPOCH:
@@ -216,7 +217,7 @@ class Model(torch.nn.Module):
 
         if final_model_path is not None and self.is_main_device:
             torch.save(self.state_dict(), final_model_path)
-            if checkpoint_path is not None:
+            if checkpoint_path is not None and os.path.isfile(checkpoint_path):
                 os.remove(checkpoint_path)
     
     def train_epoch(
@@ -231,6 +232,7 @@ class Model(torch.nn.Module):
         epochs:int=None,
         distributed_debug_mode:bool=False,
         distributed_debug_mode_config:SimpleNamespace=None,
+        device=None
     ):  
         # print(f"Epoch {epoch+1} started")
         logger = DistributedLogger()
