@@ -279,6 +279,7 @@ class RGraNetMask(LMMask):
         self.gradients_accumulation_method = gradients_accumulation_method
         self.death_and_regrowth_global = death_and_regrowth_global
         self.need_gradient_reset = False
+        self.when_prune = when_prune
     
     def prune(self):
         if self.death_and_regrowth_global:
