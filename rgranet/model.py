@@ -8,7 +8,7 @@ import torch
 # from apex import amp
 
 from .model_logger import DistributedLogger, Milestone
-from .pruning_mask import GradientsAccumulationMethod, GradualPruningMask, GraNetMask, LMMask, NoMask, RGraNetMask, _Mask
+from .pruning_mask import GradientsAccumulationMethod, GradualPruningMask, GraNetMask, LMMask, NoMask, RGraNetMask, _Mask, RGraNetMaskWhenPrune
 from .pytorch_utils import accuracy as acc_fn
 from .utils import coalesce
 
@@ -262,7 +262,7 @@ class Model(torch.nn.Module):
 
             if self.mask is not None and (not isinstance(self.mask, NoMask)) and update_mask_this_ite:
                 self.mask.step()
-                if isinstance(self.mask, (RGraNetMask, GradualPruningMask)):
+                if isinstance(self.mask, (RGraNetMask, GradualPruningMask)) and self.mask.when_prune == RGraNetMaskWhenPrune.PRUNE_BEFORE_FORWARD_REGROW_AFTER_BACKWARD:
                     # RGraNet: prune before weights update and gradient computation
                     self.mask.prune()
                 if distributed_debug_mode:
@@ -286,7 +286,7 @@ class Model(torch.nn.Module):
             
             self._accumulate_grad_if_required()
 
-            if self.mask is not None and isinstance(self.mask, (RGraNetMask)) and update_mask_this_ite:
+            if self.mask is not None and isinstance(self.mask, (RGraNetMask)) and self.mask.when_prune == RGraNetMaskWhenPrune.PRUNE_BEFORE_FORWARD_REGROW_AFTER_BACKWARD and update_mask_this_ite:
                 # RGraNet: regrow after gradient computation, before weights update
                 if distributed_debug_mode:
                     torch.save(Odict({n: p.grad.detach().clone() for n, p in self.filtered_named_parameters(self.mask.effective_params_to_prune)}), f"grads_{distributed_debug_mode_config.jobno}_{distributed_debug_mode_config.rank}_{i}.pt")
@@ -303,7 +303,7 @@ class Model(torch.nn.Module):
             if not isinstance(self.mask, NoMask):
                 self.mask.apply()
             
-            if isinstance(self.mask, GraNetMask):
+            if isinstance(self.mask, GraNetMask) or ((isinstance(self.mask, RGraNetMask)) and self.mask.when_prune == RGraNetMaskWhenPrune.PRUNE_AND_REGROW_AFTER_UPDATE):
                 # GraNet: prune and regrow AFTER weights update
                 self.mask.prune()
                 self.mask.regrow()

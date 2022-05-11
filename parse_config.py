@@ -90,6 +90,17 @@ def parse_mask(config):
     }
     config.train.pruning.mask_class = parser[config.train.pruning.mask_class]
 
+def parse_mask_whenprune(config):
+    if config.train.pruning.mask_class == msk.RGraNetMask:
+        parser = {
+            "prune_before_forward_regrow_after_backward": msk.RGraNetMaskWhenPrune.PRUNE_BEFORE_FORWARD_REGROW_AFTER_BACKWARD,
+            "prune_and_regrow_after_update": msk.RGraNetMaskWhenPrune.PRUNE_AND_REGROW_AFTER_UPDATE
+        }
+        if hasattr(config.train.pruning, "when_prune"):
+            config.train.pruning.when_prune = parser[config.train.pruning.when_prune]
+        else:
+            config.train.pruning.when_prune = msk.RGraNetMaskWhenPrune.PRUNE_BEFORE_FORWARD_REGROW_AFTER_BACKWARD
+
 def parse_clip_grad_norm(config):
     if hasattr(config.train, "clip_grad_norm") and hasattr(config.train, "clip_grad_norm_before_epoch"):
         raise ValueError("clip_grad_norm and clip_grad_norm_before_epoch cannot be set at the same time")
@@ -159,6 +170,7 @@ def parse_config(config_path):
     parse_lr_scheduler(config)
     parse_milestone(config)
     parse_mask(config)
+    parse_mask_whenprune(config)
     parse_clip_grad_norm(config)
     parse_grad_accumul(config)
     parse_pr_scheduler(config)

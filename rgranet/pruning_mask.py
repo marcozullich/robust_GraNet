@@ -14,6 +14,9 @@ class GradientsAccumulationMethod(Enum):
     ALWAYS = 1
     BETWEEN_PRUNE_AND_REGROWTH = 2
 
+class RGraNetMaskWhenPrune(Enum):
+    PRUNE_BEFORE_FORWARD_REGROW_AFTER_BACKWARD = 0
+    PRUNE_AND_REGROW_AFTER_UPDATE = 1
 
 class _Mask():
     def __init__(
@@ -251,6 +254,7 @@ class RGraNetMask(LMMask):
         gradients_accumulation_method = GradientsAccumulationMethod.NEVER,
         death_and_regrowth_rate:int=1,
         death_and_regrowth_global:bool=True,
+        when_prune=RGraNetMaskWhenPrune.PRUNE_BEFORE_FORWARD_REGROW_AFTER_BACKWARD
     ):
         super().__init__(
             init_pruning_rate=init_pruning_rate,
