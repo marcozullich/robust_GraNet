@@ -9,6 +9,7 @@ telegram_config/
 
 # cluster-specific scripts and options
 scripts/
+scripts_ignore/
 *.out
 
 # Byte-compiled / optimized / DLL files
