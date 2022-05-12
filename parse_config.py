@@ -96,10 +96,10 @@ def parse_mask_whenprune(config):
             "prune_before_forward_regrow_after_backward": msk.RGraNetMaskWhenPrune.PRUNE_BEFORE_FORWARD_REGROW_AFTER_BACKWARD,
             "prune_and_regrow_after_update": msk.RGraNetMaskWhenPrune.PRUNE_AND_REGROW_AFTER_UPDATE
         }
-        if hasattr(config.train.pruning, "when_prune"):
-            config.train.pruning.when_prune = parser[config.train.pruning.when_prune]
+        if hasattr(mask_hyperparams:=config.train.pruning.hyperparameters, "when_prune"):
+            mask_hyperparams.when_prune = parser[mask_hyperparams.when_prune]
         else:
-            config.train.pruning.when_prune = msk.RGraNetMaskWhenPrune.PRUNE_BEFORE_FORWARD_REGROW_AFTER_BACKWARD
+            mask_hyperparams.when_prune = msk.RGraNetMaskWhenPrune.PRUNE_BEFORE_FORWARD_REGROW_AFTER_BACKWARD
 
 def parse_clip_grad_norm(config):
     if hasattr(config.train, "clip_grad_norm") and hasattr(config.train, "clip_grad_norm_before_epoch"):
