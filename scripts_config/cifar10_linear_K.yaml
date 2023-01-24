@@ -16,7 +16,7 @@ train:
   checkpoint_path: checkpoints/cifar10.pt #!!null
   checkpoint_save_time: "epoch"
   resume_training: False
-  final_model_save_path: models/lin/unpr/normal/cifar10_cineca.pt
+  final_model_save_path: models/lin/K/cifar10_3.17.pt
   dtype: half
   amp_hyperparameters:
     opt_level: "O0"
@@ -37,21 +37,20 @@ train:
         milestones: [25, 40, 50]
   loss: "Cross Entropy"
   pruning:
-    mask_class: "NoMask"
-    # mask_class: "LMMask"
+    # mask_class: "NoMask"
+    mask_class: "RGraNetMask"
     hyperparameters:
       init_pruning_rate: 0.0
-      pruning_frequency: 50
-      regrowth_frequency: 50
+      pruning_frequency: 250
       params_to_prune: ["prep.0", "conv", "shortcut", "classifier"]
-    scheduler:
-      class: "PruningRateCubicSchedulingWithRegrowth"
-      hyperparameters:
-        initial_sparsity: 0.0
-        final_sparsity: 0.9
+      initial_sparsity: 0.0
+      final_sparsity: 0.9
+      regrowth_to_prune_ratio: 3.5
+      regrowth_delay: 250
         
 util:
   telegram_config_path: "telegram_config/config.yaml"
-  telegram_config_name: !!null # leave !!null for no telegram
+  telegram_config_name: "cifar10" # leave !!null for no telegram
 
 deterministic: False
+num_run: $NUM_RUN

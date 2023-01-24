@@ -8,8 +8,7 @@ data:
     num_workers: 4
     manual_seed_trainloader: !!null
 net: "PreActResNet18"
-net_hyperparameters:
-  seed: !!null
+global_seed: !!null
 train:
   epochs: 30
   burnout_epochs: 5
